@@ -59,7 +59,6 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize registry: %s", err)
 	}
 
-	booted := true
 	server := &http.Server{
 		Addr:    address,
 		Handler: s.router,
@@ -67,7 +66,6 @@ func (s *Server) Run(ctx context.Context) error {
 	s.router.Use(otelhttp.NewMiddleware((s.cfg.Name)))
 	s.router.Use(observability.HTTPMiddleware(nil))
 
-	s.RegisterHealthHandlers(s.router, func() bool { return booted })
 	if err := s.RegisterRouteHandlers(s.router, registry); err != nil {
 		return fmt.Errorf("failed to register route handlersL %s", err)
 	}
