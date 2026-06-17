@@ -1,0 +1,64 @@
+# OS junk
+.DS_Store
+Thumbs.db
+tmp/
+
+.claude
+.config
+
+*.apk
+*.aab
+*.tar.gz
+*.ipa
+
+*.tmp
+nul
+
+# Editor
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+.env
+.env.local
+.env.*.local
+
+modules
+modules/
+builds
+archive
+
+*IMPLEMENTATION.md
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Turborepo cache
+.turbo/
+
+# Vite
+vite.config.ts.timestamp-*
+*.d.ts
+!vite-env.d.ts
+node_modules
+
+# Capacitor native projects (regenerated via `cap add`)
+apps/*/ios/
+apps/*/android/
+
+# Tauri build artifacts
+apps/*/src-tauri/target/
+apps/*/src-tauri/gen/
+
+
+
+.nx/cache
+.nx/workspace-data
+test-output
+!**/*/schema.d.ts
+
+vitest.config.*.timestamp*
+vite.config.*.timestamp*
+.nx/polygraph

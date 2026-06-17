@@ -1,0 +1,58 @@
+version: "2"
+linters:
+  enable:
+    - bodyclose
+    - contextcheck
+    - depguard
+    - gocritic
+    - noctx
+    - revive
+  settings:
+    depguard:
+      rules:
+        application:
+          files:
+            - '**/internal/application/**'
+          deny:
+            - pkg: github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure
+              desc: application must not import infrastructure
+            - pkg: github.com/jarethrader/llm-gateway/gateway-service/internal/transport
+              desc: application must not import transport
+            - pkg: go.opentelemetry.io/otel/sdk
+              desc: application uses the OTel API facade, never the SDK
+        domain:
+          files:
+            - '**/internal/domain/**'
+          deny:
+            - pkg: github.com/jarethrader/llm-gateway/gateway-service/internal/application
+              desc: domain must not import application
+            - pkg: github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure
+              desc: domain must not import infrastructure
+            - pkg: github.com/jarethrader/llm-gateway/gateway-service/internal/transport
+              desc: domain must not import transport
+            - pkg: go.opentelemetry.io/otel/sdk
+              desc: domain must not import the OTel SDK (API facade only, if any)
+        transport:
+          files:
+            - '**/internal/transport/**'
+          deny:
+            - pkg: github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure
+              desc: transport depends on application ports, not infrastructure
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

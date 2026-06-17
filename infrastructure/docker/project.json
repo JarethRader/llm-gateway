@@ -1,0 +1,23 @@
+{
+  "name": "infra:docker",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "root": "infrastructure/docker",
+  "sourceRoot": "infrastructure/docker",
+  "targets": {
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose up -d",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "stop": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose down -v",
+        "cwd": "{projectRoot}"
+      }
+    }
+  }
+}

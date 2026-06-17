@@ -1,0 +1,10 @@
+{
+  "name": "@llm-gateway/typescript-config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./base.json": "./src/base.json",
+    "./react-library.json": "./src/react-library.json",
+    "./react-app.json": "./src/react-app.json"
+  }
+}

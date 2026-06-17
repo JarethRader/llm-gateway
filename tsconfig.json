@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/configs/eslint-config"
+    },
+    {
+      "path": "./packages/configs/typescript-config"
+    },
+    {
+      "path": "./apps/user-interface-e2e"
+    },
+    {
+      "path": "./apps/user-interface"
+    }
+  ]
+}

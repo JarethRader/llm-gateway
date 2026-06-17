@@ -1,0 +1,15 @@
+namespace:    "llm-gateway"
+owner:        "jarethrader@gmail.com"
+app:
+  name:         "gateway"
+  version:      "1.0.0"
+  addr:         "localhost"
+  port:         ":8848"
+  log_level:    DEBUG
+  environment:  DEV
+
+telemetry:
+  enabled: true
+  endpoint: localhost:4317
+  insecure: true
+  sample_ratio: 1.0

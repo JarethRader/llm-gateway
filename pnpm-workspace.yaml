@@ -1,0 +1,9 @@
+packages:
+  - 'packages/configs/*'
+  - 'packages/lib/ts/*'
+  - 'packages/tools/*'
+  - 'apps/*'
+allowBuilds:
+  '@swc/core': true
+  nx: true
+  unrs-resolver: true

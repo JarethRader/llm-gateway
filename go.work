@@ -1,0 +1,7 @@
+go 1.26.4
+
+use (
+	./packages/lib/golang/shared/config
+	./packages/lib/golang/shared/observability
+	./services/gateway
+)
