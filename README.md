@@ -26,3 +26,9 @@ llm-gateway is a stateless, horizontally-scalable reverse proxy that sits betwee
 - It does **not** persist request/responses, cache completions, or store chat history.
 - It does **not** implement authentication beyond API-key identity resolution for backend LLMs.
 - It does **not** depend on any managed cloud service.
+
+## License
+
+Copyright (c) 2026 Jareth Rader.
+
+This project is licensed under the **GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later). See [LICENSE](LICENSE) for the full text.

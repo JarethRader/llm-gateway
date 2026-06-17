@@ -1,5 +1,6 @@
 {
   "packageManager": "pnpm@10.33.0",
+  "license": "AGPL-3.0-or-later",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@naxodev/gonx": "^3.0.0",
