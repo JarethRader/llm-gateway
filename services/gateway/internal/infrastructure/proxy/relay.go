@@ -93,6 +93,7 @@ func (p *Relay) RelaySSE(
 	var result dto.RelayResult
 	firstByte := true
 
+	heartbeatStop := make(chan struct{}, 16)
 	writeCh := make(chan writeOp, 16)
 	var writeWg sync.WaitGroup
 	writeWg.Add(1)
@@ -126,6 +127,7 @@ func (p *Relay) RelaySSE(
 					select {
 					case writeCh <- op:
 					case <-upstreamCtx.Done():
+					case <-heartbeatStop:
 					}
 				}
 			}
@@ -184,7 +186,7 @@ func (p *Relay) RelaySSE(
 				case writeCh <- op:
 					werr := <-op.done
 					if werr != nil {
-						return completeResult(result, "client_gone", werr, writeCh, &writeWg, &heartbeatWg)
+						return completeResult(result, "client_gone", werr, writeCh, &writeWg, &heartbeatWg, heartbeatStop)
 					}
 					result.Bytes += int64(len(frame))
 					watchdog.Reset(cfg.IdleTimeout)
@@ -194,11 +196,11 @@ func (p *Relay) RelaySSE(
 							result.PromptTokens, result.CompletionTokens = p, c
 						}
 						if isDone(frame) {
-							return completeResult(result, "done", nil, writeCh, &writeWg, &heartbeatWg)
+							return completeResult(result, "done", nil, writeCh, &writeWg, &heartbeatWg, heartbeatStop)
 						}
 					}
 				case <-upstreamCtx.Done():
-					return completeResult(result, "idle_timeout", upstreamCtx.Err(), writeCh, &writeWg, &heartbeatWg)
+					return completeResult(result, "idle_timeout", upstreamCtx.Err(), writeCh, &writeWg, &heartbeatWg, heartbeatStop)
 				}
 			}
 
@@ -221,14 +223,15 @@ done:
 	cancelUpstream()
 	reader.Close()
 	readWg.Wait()
-	return completeResult(result, result.EndReason, result.Err, writeCh, &writeWg, &heartbeatWg)
+	return completeResult(result, result.EndReason, result.Err, writeCh, &writeWg, &heartbeatWg, heartbeatStop)
 }
 
 // completeResult closes the write channel, waits for goroutines to drain, and returns the final result.
-func completeResult(r dto.RelayResult, endReason string, err error, writeCh chan writeOp, writeWg, heartbeatWg *sync.WaitGroup) dto.RelayResult {
+func completeResult(r dto.RelayResult, endReason string, err error, writeCh chan writeOp, writeWg, heartbeatWg *sync.WaitGroup, heartbeatStop chan struct{}) dto.RelayResult {
+	close(heartbeatStop)
+	heartbeatWg.Wait()
 	close(writeCh)
 	writeWg.Wait()
-	heartbeatWg.Wait()
 	r.EndReason = endReason
 	r.Err = err
 	return r
