@@ -16,11 +16,13 @@ import (
 )
 
 type Relay struct {
+	cfg config.SSEStreaming
 	lgr *slog.Logger
 }
 
 func New(cfg config.SSEStreaming, lgr *slog.Logger) *Relay {
 	return &Relay{
+		cfg: cfg,
 		lgr: lgr,
 	}
 }
