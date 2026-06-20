@@ -18,7 +18,7 @@ func main() {
 	ctx := context.Background()
 
 	cfg, err := config.Load(ctx, CommitHash, Tag)
-	if err != nil {
+	if err != nil || cfg == nil {
 		log.Fatalf("failed to load application configuration: %s", err)
 	}
 
@@ -39,13 +39,7 @@ func main() {
 	lgr.Info("starting llm-gateway service...")
 
 	s := server.NewServer(
-		server.Config{
-			Name:                        cfg.App.Name,
-			Addr:                        cfg.App.Addr,
-			Port:                        cfg.App.Port,
-			ShutdownWaitSec:             30,
-			GracefulShutdownWaitTimeSec: 10,
-		},
+		*cfg,
 		lgr,
 		*telemetry,
 	)

@@ -2,6 +2,7 @@ package integration
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -46,7 +47,8 @@ func (r *ProxyRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		Model string `json:"model"`
 	}
 	if err := json.NewDecoder(io.TeeReader(req.Body, w)).Decode(&payload); err != nil {
-		// no-op
+		http.Error(w, "failed to decode request body", http.StatusInternalServerError)
+		return
 	}
 
 	be, ok := r.modelToBackend[payload.Model]
@@ -61,7 +63,7 @@ func (r *ProxyRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	proxy.ServeHTTP(w, req)
 }
 
-func newTestGateway(t *testing.T, backends ...MockBackend) httptest.Server {
+func newTestGateway(backends ...MockBackend) httptest.Server {
 	r := &ProxyRouter{modelToBackend: make(map[string]*MockBackend)}
 	for _, be := range backends {
 		r.Register(be)
@@ -79,16 +81,22 @@ func backend(name, url, model string) MockBackend {
 	}
 }
 
-func postChat(t *testing.T, url, model string, stream bool, key string) *http.Response {
+func postChat(t *testing.T, url, model string, stream bool) *http.Response {
 	body := fmt.Sprintf(`{"model":"%s","stream":%t}`, model, stream)
-	resp, err := http.Post(url+"/v1/chat/completions", "application/json", strings.NewReader(body))
+
+	req, err := http.NewRequestWithContext(context.TODO(), "POST", url+"/v1/chat/completions", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return resp
 }
 
-func readSSE(t *testing.T, r io.Reader) []string {
+func readSSE(r io.Reader) []string {
 	var frames strings.Builder
 	reader := bufio.NewReader(r)
 	for {
@@ -147,19 +155,19 @@ func TestRelay_PreFirstByte_ReroutesToHealthy(t *testing.T) {
 	t.Cleanup(bad.Close)
 	t.Cleanup(good.Close)
 
-	gw := newTestGateway(t,
+	gw := newTestGateway(
 		backend("b-bad", bad.URL(), "m"),
 		backend("b-good", good.URL(), "m"),
 	)
 	t.Cleanup(gw.Close)
 
-	resp := postChat(t, gw.URL, "m" /*stream=*/, true, "valid-key")
+	resp := postChat(t, gw.URL, "m" /*stream=*/, true)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (retry should have saved it)", resp.StatusCode)
 	}
-	frames := readSSE(t, resp.Body)
+	frames := readSSE(resp.Body)
 	if !containsDone(frames) {
 		t.Fatal("stream did not terminate with [DONE]")
 	}

@@ -1,6 +1,7 @@
 package fakevllm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -47,7 +48,8 @@ func New(b Behavior) *Fake {
 	f.srv = httptest.NewUnstartedServer(mux)
 
 	if b.Addr != nil {
-		l, err := net.Listen("tcp", "127.0.0.1"+*b.Addr)
+		lc := net.ListenConfig{}
+		l, err := lc.Listen(context.TODO(), "tcp", "127.0.0.1"+*b.Addr)
 		if err != nil {
 			log.Fatalf("Failed to listen on port %s: %v", *b.Addr, err)
 		}

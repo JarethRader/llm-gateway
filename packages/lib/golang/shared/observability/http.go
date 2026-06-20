@@ -2,7 +2,6 @@ package observability
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -12,10 +11,14 @@ const HeaderRequestID = "X-Request-ID"
 
 // NewHTTPClient returns an http.Client whose Transport injects W3C
 // traceparent into every outbound request and records CLIENT span.
-func NewHTTPClient(timeout time.Duration) *http.Client {
+func NewHTTPClient(rt http.RoundTripper) *http.Client {
+	transport := http.DefaultTransport
+	if rt != nil {
+		transport = rt
+	}
+
 	return &http.Client{
-		Timeout:   timeout,
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Transport: otelhttp.NewTransport(transport),
 	}
 }
 

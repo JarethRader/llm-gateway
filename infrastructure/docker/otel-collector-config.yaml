@@ -21,8 +21,8 @@ exporters:
     verbosity: detailed
     sampling_initial: 1
     sampling_thereafter: 1
-  jaeger:
-    endpoint: jaeger:14268
+  otlp/jaeger:
+    endpoint: jaeger:4317
     tls:
       insecure: true
 
@@ -31,7 +31,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug, jaeger]
+      exporters: [debug, otlp/jaeger]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]

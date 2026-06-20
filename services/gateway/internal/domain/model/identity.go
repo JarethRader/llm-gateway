@@ -1,7 +1,7 @@
 package model
 
 // ModelID is the LLM model name a client requests, e.g. "llama-3.1-70b".
-type ModelID string
+type LargeLanguageModelID string
 
 // BackendID uniquely identifies one vLLM/OpenAI compatible backend instance.
 type BackendID string
