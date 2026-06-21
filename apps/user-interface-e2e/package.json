@@ -6,5 +6,8 @@
     "implicitDependencies": [
       "user-interface"
     ]
+  },
+  "devDependencies": {
+    "@llm-gateway/typescript-config": "workspace:*"
   }
 }

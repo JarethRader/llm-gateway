@@ -1,0 +1,20 @@
+{
+  "name": "app:user-interface",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/user-interface",
+  "tags": ["type:app", "language:javascript", "type:vite", "type:ui"],
+  "targets": {},
+  "implicitDependencies": [],
+  "//": "The @nx/vite/plugin will auto-generate dev, build, serve, etc. targets",
+  "plugins": [
+    {
+      "plugin": "@nx/vite/plugin",
+      "options": {
+        "buildTargetName": "build",
+        "devTargetName": "dev",
+        "serveTargetName": "serve"
+      }
+    }
+  ]
+}

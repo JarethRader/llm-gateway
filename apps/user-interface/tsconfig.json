@@ -1,4 +1,11 @@
 {
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+  },
   "files": [],
   "include": [],
   "references": [
@@ -9,5 +16,5 @@
       "path": "./tsconfig.spec.json"
     }
   ],
-  "extends": "../../tsconfig.base.json"
+  "extends": "@llm-gateway/typescript-config/base.json"
 }

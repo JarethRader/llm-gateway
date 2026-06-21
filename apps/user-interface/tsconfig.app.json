@@ -1,9 +1,10 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@llm-gateway/typescript-config/react-app.json",
   "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
-    "jsx": "react-jsx",
     "lib": ["dom"],
     "types": [
       "node",
@@ -12,8 +13,9 @@
       "vite/client"
     ],
     "rootDir": "src",
-    "module": "esnext",
-    "moduleResolution": "bundler"
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "exclude": [
     "out-tsc",
@@ -34,5 +36,10 @@
     "eslint.config.cjs",
     "eslint.config.mjs"
   ],
-  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.ts", "src/**/*.tsx"],
+  "references": [
+    {
+      "path": "../../packages/configs/typescript-config/tsconfig.lib.json"
+    }
+  ]
 }

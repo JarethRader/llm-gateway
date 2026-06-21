@@ -43,16 +43,7 @@ vite.config.ts.timestamp-*
 *.d.ts
 !vite-env.d.ts
 node_modules
-
-# Capacitor native projects (regenerated via `cap add`)
-apps/*/ios/
-apps/*/android/
-
-# Tauri build artifacts
-apps/*/src-tauri/target/
-apps/*/src-tauri/gen/
-
-
+out-tsc/
 
 .nx/cache
 .nx/workspace-data

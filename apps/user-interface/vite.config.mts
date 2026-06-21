@@ -1,6 +1,8 @@
 /// <reference types='vitest' />
 import { defineConfig } from 'vite';
+import path from "path";
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
@@ -13,7 +15,10 @@ export default defineConfig(() => ({
     port: 4200,
     host: 'localhost',
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    tailwindcss(),
+  ],
   // Uncomment this if you are using workers.
   // worker: {
   //  plugins: [],
@@ -25,6 +30,11 @@ export default defineConfig(() => ({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, 'src'),
+    }
   },
   test: {
     name: 'user-interface',

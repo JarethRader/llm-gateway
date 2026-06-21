@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@llm-gateway/typescript-config/base.json",
   "compilerOptions": {
     "allowJs": true,
     "outDir": "out-tsc/playwright",
@@ -21,5 +21,10 @@
     "eslint.config.js",
     "eslint.config.mjs",
     "eslint.config.cjs"
+  ],
+  "references": [
+    {
+      "path": "../../packages/configs/typescript-config"
+    }
   ]
 }
