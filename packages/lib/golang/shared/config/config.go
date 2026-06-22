@@ -29,9 +29,16 @@ type (
 
 		ShutdownWaitSec int `mapstructure:"shutdown_wait_sec"`
 
+		Turso Turso `mapstructure:"turso"`
+
 		Telemetry      Telemetry      `mapstructure:"telemetry"`
 		ConnectionPool ConnectionPool `mapstructure:"connection_pool"`
 		SSEStreaming   SSEStreaming   `mapstructure:"sse_streaming"`
+	}
+
+	Turso struct {
+		URL   string `mapstructure:"url"`
+		Token string `mapstructure:"token"`
 	}
 
 	Telemetry struct {

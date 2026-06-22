@@ -1,0 +1,19 @@
+namespace:    "llm-gateway"
+owner:        "jarethrader@gmail.com"
+app:
+  name:         "api"
+  version:      "1.0.0"
+  addr:         "localhost"
+  port:         ":9000"
+  log_level:    DEBUG
+  environment:  DEV
+
+telemetry:
+  enabled: true
+  endpoint: localhost:4317
+  insecure: true
+  sample_ratio: 1.0
+
+turso:
+  url: http://localhost:8080
+  token: a1b2c3d4

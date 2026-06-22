@@ -3,5 +3,7 @@ go 1.26.4
 use (
 	./packages/lib/golang/shared/config
 	./packages/lib/golang/shared/observability
+	./packages/lib/golang/shared/pkg
+	./services/api
 	./services/gateway
 )

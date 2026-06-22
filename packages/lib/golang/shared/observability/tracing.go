@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"packages/lib/golang/shared/config"
 	"time"
 
 	"go.opentelemetry.io/contrib/bridges/otelslog"
@@ -34,18 +35,7 @@ type TelemetryProviders struct {
 	Shutdown func(context.Context) error
 }
 
-type ProviderConfig struct {
-	ServiceName string
-	Version     string
-	Environment string
-
-	Enabled     bool
-	Endpoint    string
-	Insecure    bool
-	SampleRatio float64
-}
-
-func InitTracer(ctx context.Context, cfg ProviderConfig) (*TelemetryProviders, error) {
+func InitTracer(ctx context.Context, serviceName, version, environment string, cfg config.Telemetry) (*TelemetryProviders, error) {
 	if !cfg.Enabled {
 		return &TelemetryProviders{
 			Tracer:   noop.NewTracerProvider(),
@@ -55,7 +45,7 @@ func InitTracer(ctx context.Context, cfg ProviderConfig) (*TelemetryProviders, e
 		}, nil
 	}
 
-	res, err := buildResource(ctx, cfg)
+	res, err := buildResource(ctx, serviceName, version, environment)
 	if err != nil {
 		return nil, fmt.Errorf("telemetry: build resource: %w", err)
 	}
@@ -113,7 +103,7 @@ func NewOtelSlogHandler(name string) *otelslog.Handler {
 	return otelslog.NewHandler(name, otelslog.WithLoggerProvider(global.GetLoggerProvider()))
 }
 
-func buildResource(ctx context.Context, cfg ProviderConfig) (*resource.Resource, error) {
+func buildResource(ctx context.Context, serviceName, version, environment string) (*resource.Resource, error) {
 	// resource.WithFromEnv consumes OTEL_RESOURCE_ATTRIBUTES populated by
 	// the Kubernetes Downward API (see Phase 4 pod spec).
 	// Note: WithProcess() omitted as it requires CGO for username detection.
@@ -123,15 +113,15 @@ func buildResource(ctx context.Context, cfg ProviderConfig) (*resource.Resource,
 		resource.WithContainer(),
 		resource.WithHost(),
 		resource.WithAttributes(
-			semconv.ServiceName(cfg.ServiceName),
-			semconv.ServiceVersion(cfg.Version),
-			semconv.DeploymentEnvironmentName(cfg.Environment),
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion(version),
+			semconv.DeploymentEnvironmentName(environment),
 		),
 	}
 	return resource.New(ctx, opts...)
 }
 
-func buildTracerProvider(ctx context.Context, cfg ProviderConfig, res *resource.Resource) (*sdktrace.TracerProvider, error) {
+func buildTracerProvider(ctx context.Context, cfg config.Telemetry, res *resource.Resource) (*sdktrace.TracerProvider, error) {
 	opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.Endpoint)}
 	if cfg.Insecure {
 		opts = append(opts, otlptracegrpc.WithInsecure())
@@ -151,7 +141,7 @@ func buildTracerProvider(ctx context.Context, cfg ProviderConfig, res *resource.
 	), nil
 }
 
-func buildMeterProvider(ctx context.Context, cfg ProviderConfig, res *resource.Resource) (*sdkmetric.MeterProvider, error) {
+func buildMeterProvider(ctx context.Context, cfg config.Telemetry, res *resource.Resource) (*sdkmetric.MeterProvider, error) {
 	opts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint)}
 	if cfg.Insecure {
 		opts = append(opts, otlpmetricgrpc.WithInsecure())
@@ -167,7 +157,7 @@ func buildMeterProvider(ctx context.Context, cfg ProviderConfig, res *resource.R
 	), nil
 }
 
-func buildLoggerProvider(ctx context.Context, cfg ProviderConfig, res *resource.Resource) (*sdklog.LoggerProvider, error) {
+func buildLoggerProvider(ctx context.Context, cfg config.Telemetry, res *resource.Resource) (*sdklog.LoggerProvider, error) {
 	opts := []otlploggrpc.Option{otlploggrpc.WithEndpoint(cfg.Endpoint)}
 	if cfg.Insecure {
 		opts = append(opts, otlploggrpc.WithInsecure())

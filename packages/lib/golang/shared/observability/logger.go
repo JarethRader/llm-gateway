@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func NewLogger(serviceName, version, logLevel, enrionment string) *slog.Logger {
+func NewLogger(serviceName, version, logLevel, environment string) *slog.Logger {
 	slog_level := slog.LevelError
 	switch strings.ToUpper(strings.TrimSpace(logLevel)) {
 	case "DEBUG":
@@ -22,7 +22,7 @@ func NewLogger(serviceName, version, logLevel, enrionment string) *slog.Logger {
 		slog_level = slog.LevelError
 	}
 
-	json_handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	opts := &slog.HandlerOptions{
 		Level: slog_level,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			switch a.Key {
@@ -36,7 +36,15 @@ func NewLogger(serviceName, version, logLevel, enrionment string) *slog.Logger {
 			}
 			return a
 		},
-	})
+		AddSource: true,
+	}
+
+	var json_handler slog.Handler
+	if environment == "DEV" {
+		json_handler = slog.New(NewFormatter(opts)).Handler()
+	} else {
+		json_handler = slog.NewJSONHandler(os.Stdout, opts)
+	}
 
 	otel_handler := NewOtelSlogHandler(serviceName)
 	json_with_trace := &traceHandler{
@@ -52,7 +60,7 @@ func NewLogger(serviceName, version, logLevel, enrionment string) *slog.Logger {
 	logger := slog.New(combined).With(
 		slog.String("service.name", serviceName),
 		slog.String("service.version", version),
-		slog.String("deployment.environment", enrionment),
+		slog.String("deployment.environment", environment),
 	)
 	return logger
 }

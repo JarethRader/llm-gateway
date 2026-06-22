@@ -1,6 +1,23 @@
 name: llm-gateway-local
 
 services:
+  libsql:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - libsql-data:/var/lib/libsql
+    environment:
+      - LIBSQL_AUTH_TOKEN=${TURSO_AUTH_TOKEN:-a1b2c3d4}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - llm-gateway
+    restart: unless-stopped
   jaeger:
     image: jaegertracing/all-in-one:1.57
     ports:
@@ -46,3 +63,7 @@ networks:
   llm-gateway:
     name: llm-gateway
     driver: bridge
+
+volumes:
+  libsql-data:
+    name: llm-gateway-libsql-data

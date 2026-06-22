@@ -6,7 +6,7 @@ import (
 	"packages/lib/golang/shared/config"
 	"packages/lib/golang/shared/observability"
 
-	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/server"
+	"github.com/jarethrader/llm-gateway/api-service/internal/infrastructure/server"
 )
 
 var (
@@ -28,15 +28,11 @@ func main() {
 	}
 
 	lgr := observability.NewLogger(cfg.App.Name, cfg.App.Version, cfg.App.LogLevel, cfg.App.Environment)
-	lgr.Info("starting llm-gateway service...")
+	lgr.Info("starting api service...")
 
-	s := server.NewServer(
-		*cfg,
-		lgr,
-		*telemetry,
-	)
+	s := server.NewServer(*cfg, lgr, *telemetry)
 
 	if err := s.Run(ctx); err != nil {
-		log.Fatalf("failed to run server: %s", err)
+		log.Fatalf("server could not be started: %v", err)
 	}
 }

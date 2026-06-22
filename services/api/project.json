@@ -1,0 +1,79 @@
+{
+  "name": "service:api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "services/api/cmd/server",
+  "tags": ["type:app", "language:go", "type:service"],
+  "targets": {
+    "tidy": {
+      "executor": "nx:run-command",
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "go mod tidy"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "{projectRoot}",
+        "commands": [
+          "golangci-lint run ./..."
+        ],
+        "parallel": false
+      }
+    },
+    "build": {
+      "executor": "@naxodev/gonx:build",
+      "cache": true,
+      "options": {
+        "main": "cmd/server/main.go",
+        "flags": [
+          "-ldflags=\"-X main.CommitHash={args.commit} -X main.Tag={args.tag} -s -w\""
+        ],
+        "args": ["--commit=local", "--tag=latest"],
+        "env": {
+          "CGO_ENABLED": "0",
+          "GOOS": "linux",
+          "GOARCH": "amd64",
+          "GIN_MODE": "release"
+        },
+        "outputPath": "{projectRoot}/dist/"
+      },
+      "outputs": ["{options.outputPath}"]
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "air -c .air.toml",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go test ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "race": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go test -race -count=1 ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "cover": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "go test ./...",
+          "coverpkg=./internal/...,./cmd/server -",
+          "coverprofile=cover.out",
+          "go tool cover -func=cover.out | tail -1",
+          "go tool cover -html=cover.out"
+        ],
+        "cwd": "{projectRoot}"
+      }
+    }
+  }
+}

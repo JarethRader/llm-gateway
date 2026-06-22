@@ -13,24 +13,23 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/model"
-	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/registry"
+	"github.com/jarethrader/llm-gateway/api-service/internal/infrastructure/registry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type Server struct {
 	cfg       config.Config
 	lgr       *slog.Logger
-	router    *chi.Mux
 	telemetry observability.TelemetryProviders
+	router    *chi.Mux
 }
 
 func NewServer(cfg config.Config, lgr *slog.Logger, telemetryProviders observability.TelemetryProviders) *Server {
 	return &Server{
 		cfg:       cfg,
 		lgr:       lgr,
-		router:    chi.NewMux(),
 		telemetry: telemetryProviders,
+		router:    chi.NewMux(),
 	}
 }
 
@@ -46,22 +45,18 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to create wait signal: %s", err)
 	}
 
-	registry, err := registry.Init(s.cfg, s.lgr)
+	registry, err := registry.Init(ctx, s.cfg, s.lgr)
 	if err != nil {
 		return fmt.Errorf("failed to initialize registry: %s", err)
 	}
-
-	middleware := NewMiddleware(s.lgr.With("component", "middleware"))
-
 	server := &http.Server{
 		Addr:    address,
 		Handler: s.router,
 	}
 	s.router.Use(otelhttp.NewMiddleware((s.cfg.App.Name)))
-	s.router.Use(middleware.Recovery)
 	s.router.Use(observability.HTTPMiddleware(nil))
 
-	if err := s.RegisterRouteHandlers(s.router, registry); err != nil {
+	if err := s.RegisterHandlers(s.router, registry); err != nil {
 		return fmt.Errorf("failed to register route handlers: %s", err)
 	}
 
@@ -70,16 +65,6 @@ func (s *Server) Run(ctx context.Context) error {
 			s.lgr.Error("start server and listen", slog.Any("error", err))
 		}
 	}()
-
-	registry.ConnectionPool.Sync([]model.Backend{
-		{
-			ID:       "fakevllm-backend-001",
-			BaseURL:  "http://localhost:11434",
-			Protocol: model.ProtocolH1,
-			Models:   []model.LargeLanguageModelID{"m"},
-			Weight:   1.0,
-		},
-	})
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
