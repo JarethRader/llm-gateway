@@ -23,7 +23,7 @@ func NewRepository(db *sqlx.DB, lgr *slog.Logger) backend.Repository {
 }
 
 // CreateBackend implements [backend.Repository].
-func (r *repository) CreateBackend(ctx context.Context, backend models.Backend) error {
+func (r *repository) CreateBackend(ctx context.Context, backend models.Backend) (int64, error) {
 	sql := `INSERT INTO backends
 		(name, protocol, base_url, enabled, models_served, weight, max_concurrent, kv_cache_aware_routing, metrics_url, scrape_interval, max_idle_connections_per_host, idle_connection_timeout, dial_timeout, stream_stall_timeout, response_header_timeout, failure_threshold, rolling_window, open_base, open_max, backoff_factor, half_open_probes, half_open_successes, health_check_path, health_interval, verify_tls_cert, description, labels)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
@@ -62,12 +62,19 @@ func (r *repository) CreateBackend(ctx context.Context, backend models.Backend) 
 	}
 
 	r.lgr.Debug("executing query", slog.String("sql", sql), slog.Any("args", args))
-	if _, err := r.db.ExecContext(ctx, sql, args...); err != nil {
+	res, err := r.db.ExecContext(ctx, sql, args...)
+	if err != nil {
 		r.lgr.Error("failed to create backend config", slog.Any("error", err))
-		return err
+		return 0, err
 	}
 
-	return nil
+	id, err := res.LastInsertId()
+	if err != nil {
+		r.lgr.Error("failed to get last insert id", slog.Any("error", err))
+		return 0, err
+	}
+
+	return id, nil
 }
 
 // DeleteBackend implements [backend.Repository].

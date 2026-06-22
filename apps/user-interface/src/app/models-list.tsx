@@ -6,74 +6,52 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ModelForm } from "@/components/forms/model-form";
-
-interface BackendProps {
-  name: string;
-  endpoint: string;
-  models: string[];
-  weight: number;
-  inFlight: number;
-  total: number;
-  breakerState: "open" | "half-open" | "closed" | "disabled";
-  enabled: boolean;
-}
-
-const backends: BackendProps[] = [
-  {
-    name: "vllm-a100-3",
-    endpoint: "vllm-3.vllm.svc:8000",
-    models: ["llama-70b", "llama-8b"],
-    weight: 100,
-    inFlight: 14,
-    total: 64,
-    breakerState: "closed",
-    enabled: true,
-  },
-  {
-    name: "vllm-a100-4",
-    endpoint: "vllm-a100-4.vllm.svc:8000",
-    models: ["llama-70b"],
-    weight: 100,
-    inFlight: 41,
-    total: 64,
-    breakerState: "half-open",
-    enabled: true,
-  },
-  {
-    name: "vllm-l40s-1",
-    endpoint: "vllm-l40s-1.vllm.svc:8000",
-    models: ["llama-8b", "qwen-coder"],
-    weight: 50,
-    inFlight: 0,
-    total: 32,
-    breakerState: "open",
-    enabled: true,
-  },
-  {
-    name: "vllm-3090-home",
-    endpoint: "vllm-3090-home.vllm.svc:8000",
-    models: ["llama-8b"],
-    weight: 25,
-    inFlight: 3,
-    total: 16,
-    breakerState: "closed",
-    enabled: true,
-  },
-  {
-    name: "vllm-a100-spare",
-    endpoint: "vllm-a100-spare.vllm.svc:8000",
-    models: ["llama-70b"],
-    weight: 100,
-    inFlight: 0,
-    total: 0,
-    breakerState: "disabled",
-    enabled: false,
-  },
-]
+import { useBackend } from "@/store/backend";
+import { GetBackend, GetBackendList } from "@/api/backend";
+import { toast } from "sonner";
 
 export function ModelsList() {
-  const [showModal, setShowModal] = React.useState(true);
+  const { state, dispatch } = useBackend();
+
+  const [showModal, setShowModal] = React.useState(false);
   const toggleModal = () => setShowModal(!showModal);
+
+  const [backends, setBackend] = React.useState<SparseBackend[]>([]);
+
+  React.useEffect(() => {
+    if (state.BackendList.length) {
+      setBackend(state.BackendList);
+    }
+  }, [state]);
+
+  React.useEffect(() => {
+    const hydrateBackends = async () => {
+      try {
+        const backendList = await GetBackendList();
+        dispatch({
+          type: "SET_BACKEND_LIST",
+          payload: backendList,
+        });
+      } catch (err) {
+        toast.error((err as Error).message, { position: "top-center" });
+      }
+    }
+
+    hydrateBackends();
+  }, [dispatch]);
+
+  const handleSelectBackend = async (id: number) => {
+    try {
+      const selectedBackend = await GetBackend(id);
+      dispatch({
+        type: "SET_CURRENT_BACKEND",
+        payload: selectedBackend,
+      });
+      setShowModal(true);
+    } catch (err) {
+      toast.error((err as Error).message, { position: "top-center" });
+    }
+  }
 
   return (
     <div>
@@ -108,10 +86,10 @@ export function ModelsList() {
             <TableRow key={index}>
               <TableCell className="font-medium">
                 <p className="scroll-m-20 text-md font-semibold tracking-tight">{backend.name}</p>
-                <p className="text-sm text-muted-foreground">{backend.endpoint}</p>
+                <p className="text-sm text-muted-foreground">{backend.baseUrl}</p>
               </TableCell>
               <TableCell className="flex flex-wrap gap-1">
-                {backend.models.map((model) => (
+                {backend.modelsServed.map((model) => (
                   <Badge key={model} variant="outline">{model}</Badge>
                 ))}
               </TableCell>
@@ -126,7 +104,7 @@ export function ModelsList() {
                 </div>
               </TableCell>
               <TableCell>
-                <Button className="cursor-pointer" variant="secondary" size="icon">
+                <Button className="cursor-pointer" variant="secondary" size="icon" onClick={() => handleSelectBackend(backend.id)}>
                   <Edit />
                 </Button>
               </TableCell>

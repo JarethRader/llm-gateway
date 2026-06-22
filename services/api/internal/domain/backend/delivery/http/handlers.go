@@ -34,13 +34,14 @@ func (h *handler) CreateBackend() http.HandlerFunc {
 			return
 		}
 
-		if err := h.usecase.CreateBackend(r.Context(), req); err != nil {
+		id, err := h.usecase.CreateBackend(r.Context(), req)
+		if err != nil {
 			h.lgr.Error("failed to complete request", slog.String("path", "/backend"), slog.String("method", "POST"), slog.Any("error", err))
 			lib.WriteJSON(w, http.StatusInternalServerError, map[string]any{"errors": err})
 			return
 		}
 
-		lib.WriteJSON(w, http.StatusCreated, nil)
+		lib.WriteJSON(w, http.StatusCreated, map[string]any{"backend_id": id})
 	}
 }
 

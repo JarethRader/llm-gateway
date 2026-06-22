@@ -21,13 +21,14 @@ func NewService(repository backend.Repository, lgr *slog.Logger) backend.Usecase
 }
 
 // CreateBackend implements [backend.Usecase].
-func (s *service) CreateBackend(ctx context.Context, backend models.Backend) error {
-	if err := s.repository.CreateBackend(ctx, backend); err != nil {
+func (s *service) CreateBackend(ctx context.Context, backend models.Backend) (int64, error) {
+	id, err := s.repository.CreateBackend(ctx, backend)
+	if err != nil {
 		s.lgr.Error("failed to create backend", slog.Any("error", err))
-		return err
+		return 0, err
 	}
 
-	return nil
+	return id, nil
 }
 
 // GetBackendByID implements [backend.Usecase].

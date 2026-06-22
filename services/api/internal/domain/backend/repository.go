@@ -7,7 +7,7 @@ import (
 )
 
 type Repository interface {
-	CreateBackend(ctx context.Context, backend models.Backend) error
+	CreateBackend(ctx context.Context, backend models.Backend) (int64, error)
 	UpdateBackend(ctx context.Context, backendID int64, backend models.Backend) error
 	DeleteBackend(ctx context.Context, backendID int64) error
 

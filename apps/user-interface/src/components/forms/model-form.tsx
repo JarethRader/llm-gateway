@@ -62,6 +62,8 @@ import {
   SquareActivity,
   Tag,
 } from 'lucide-react';
+import { useBackend } from '@/store/backend';
+import { CreateBackend, DeleteBackend, UpdateBackend } from '@/api/backend';
 
 const FORM_ID = 'model-form';
 
@@ -112,6 +114,9 @@ interface ModelFormProps {
 }
 
 export function ModelForm(props: ModelFormProps) {
+  const { state, dispatch } = useBackend();
+  const [isUpdate, setIsUpdate] = React.useState(false);
+
   const form = useForm<FormInput, unknown, ModelFormData>({
     resolver: zodResolver(ModelSchema),
     defaultValues,
@@ -119,14 +124,102 @@ export function ModelForm(props: ModelFormProps) {
 
   const { control } = form;
 
-  const onSubmit = (data: ModelFormData) => {
-    console.log(data);
-    toast.success(`Backend "${data.name}" saved.`, { position: "top-center" });
+  const onSubmit = async (data: ModelFormData) => {
+    try {
+      if (isUpdate) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        await UpdateBackend(state.CurrentBackend!.id!, data as unknown as Backend);
+      } else {
+        const newId = await CreateBackend(data as unknown as Backend);
+        dispatch({
+        type: "ADD_BACKEND",
+        payload: {
+          id: newId,
+          name: data.name,
+          baseUrl: data.baseUrl,
+          modelsServed: data.modelsServed,
+          weight: data.weight,
+          inFlight: 0,
+          total: data.maxConcurrent,
+          breakerState: "closed",
+          enabled: data.enabled,
+        }
+      })
+      }
+      toast.success(`Backend "${data.name}" saved.`, {
+        position: 'top-center',
+      });
+      handleClose();
+    } catch (err) {
+      toast.error((err as Error).message, { position: 'top-center' });
+    }
   };
 
   const onInvalid = () => {
-    toast.error('Please fix the highlighted fields before saving.', { position: "top-center" });
+    toast.error('Please fix the highlighted fields before saving.', {
+      position: 'top-center',
+    });
   };
+
+  React.useEffect(() => {
+    if (state.CurrentBackend) {
+      setIsUpdate(true);
+      form.reset({
+        name: state.CurrentBackend.name,
+        protocol: state.CurrentBackend.protocol,
+        baseUrl: state.CurrentBackend.baseUrl,
+        enabled: state.CurrentBackend.enabled,
+        modelsServed: state.CurrentBackend.modelsServed,
+        weight: state.CurrentBackend.weight,
+        maxConcurrent: state.CurrentBackend.maxConcurrent,
+        kvCacheAwareRouting: state.CurrentBackend.kvCacheAwareRouting,
+        metricsUrl: state.CurrentBackend.metricsUrl,
+        scrapeInterval: state.CurrentBackend.scrapeInterval,
+        maxIdleConnectionsPerHost:
+          state.CurrentBackend.maxIdleConnectionsPerHost,
+        idleConnectionTimeout: state.CurrentBackend.idleConnectionTimeout,
+        dialTimeout: state.CurrentBackend.dialTimeout,
+        streamStallTimeout: state.CurrentBackend.streamStallTimeout,
+        responseHeaderTimeout: state.CurrentBackend.responseHeaderTimeout,
+        failureThreshold: state.CurrentBackend.failureThreshold,
+        rollingWindow: state.CurrentBackend.rollingWindow,
+        openBase: state.CurrentBackend.openBase,
+        openMax: state.CurrentBackend.openMax,
+        backoffFactor: state.CurrentBackend.backoffFactor,
+        halfOpenProbes: state.CurrentBackend.halfOpenProbes,
+        halfOpenSuccesses: state.CurrentBackend.halfOpenSuccesses,
+        healthCheckPath: state.CurrentBackend.healthCheckPath,
+        healthInterval: state.CurrentBackend.healthInterval,
+        verifyTlsCert: state.CurrentBackend.verifyTlsCert,
+        description: state.CurrentBackend.description ?? "",
+        labels: state.CurrentBackend.labels,
+      });
+    }
+  }, [state.CurrentBackend, form]);
+
+  const handleOnDelete = async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      await DeleteBackend(state.CurrentBackend!.id!);
+      dispatch({
+        type: 'REMOVE_BACKEND',
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        payload: state.CurrentBackend!.id!,
+      });
+      handleClose();
+    } catch (err) {
+      toast.error((err as Error).message, { position: 'top-center' });
+    }
+  };
+
+  const handleClose = () => {
+    setIsUpdate(false);
+    dispatch({
+      type: 'REMOVED_CURRENT_BACKEND',
+    });
+    form.reset(defaultValues);
+    props.close();
+  }
 
   return (
     <Card className="w-full max-w-3xl">
@@ -139,12 +232,9 @@ export function ModelForm(props: ModelFormProps) {
           <Button
             className="cursor-pointer"
             type="button"
-            variant="destructive"
+            variant="secondary"
             size="lg"
-            onClick={() => {
-              props.close();
-              form.reset(defaultValues);
-            }}
+            onClick={handleClose}
           >
             Cancel
           </Button>
@@ -156,6 +246,18 @@ export function ModelForm(props: ModelFormProps) {
           >
             Save backend
           </Button>
+          {isUpdate && (
+            <Button
+              className="cursor-pointer"
+              type="reset"
+              variant="destructive"
+              form={FORM_ID}
+              size="lg"
+              onClick={handleOnDelete}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>

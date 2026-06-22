@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/cors"
 	"github.com/jarethrader/llm-gateway/api-service/internal/infrastructure/registry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -55,6 +56,11 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	s.router.Use(otelhttp.NewMiddleware((s.cfg.App.Name)))
 	s.router.Use(observability.HTTPMiddleware(nil))
+	s.router.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
+	}))
 
 	if err := s.RegisterHandlers(s.router, registry); err != nil {
 		return fmt.Errorf("failed to register route handlers: %s", err)
