@@ -49,3 +49,15 @@ load_balancer:
     interval: 2s
     timeout: 1s
     cache_ttl: 1s
+
+backend_discovery:
+  mode: dynamic # static | dynamic | endpointslice
+  api_url: http://localhost:9000
+  interval: 60s
+  backends:
+    - id: bertha
+      base_url: http://localhost:11434
+      protocol: h1
+      models:
+        - m
+      weight: 1.0

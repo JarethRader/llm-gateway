@@ -40,10 +40,10 @@ func (bl *backendLive) snapshot(m model.LargeLanguageModelID, refTTFTMs float64,
 		Serves:      bl.backend.Serves(m),
 		Healthy:     bl.healthy.Load(),
 		BreakerOpen: false, // TODO get circuit breaker status
-		TtftEwmaMs:  bl.ttftBits.Load(),
+		TtftEwmaMs:  ttft,
 		InFlight:    int(bl.inFlight.Load()),
 		MaxInFlight: int(bl.maxInFlight),
-		CacheUsage:  cache,
+		CacheUsage:  math.Float64frombits(cache),
 		Weight:      bl.backend.Weight,
 	}
 }

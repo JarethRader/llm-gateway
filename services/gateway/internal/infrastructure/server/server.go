@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/model"
+	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/discovery"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/registry"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -71,17 +72,10 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 	}()
 
-	backends := []model.Backend{
-		{
-			ID:       "fakevllm-backend-001",
-			BaseURL:  "http://localhost:11434",
-			Protocol: model.ProtocolH1,
-			Models:   []model.LargeLanguageModelID{"m"},
-			Weight:   1.0,
-		},
-	}
-	registry.ConnectionPool.Sync(backends)
-	registry.LoadBalancer.Sync(backends)
+	discovery.Register(ctx, s.cfg.BackendDiscovery, s.lgr.With("component", "discovery"), func(backends []model.Backend) {
+		registry.ConnectionPool.Sync(backends)
+		registry.LoadBalancer.Sync(backends)
+	})
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)

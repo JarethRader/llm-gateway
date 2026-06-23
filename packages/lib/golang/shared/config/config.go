@@ -31,10 +31,11 @@ type (
 
 		Turso Turso `mapstructure:"turso"`
 
-		Telemetry      Telemetry      `mapstructure:"telemetry"`
-		ConnectionPool ConnectionPool `mapstructure:"connection_pool"`
-		SSEStreaming   SSEStreaming   `mapstructure:"sse_streaming"`
-		LoadBalancer   LoadBalancer   `mapstructure:"load_balancer"`
+		Telemetry        Telemetry        `mapstructure:"telemetry"`
+		ConnectionPool   ConnectionPool   `mapstructure:"connection_pool"`
+		SSEStreaming     SSEStreaming     `mapstructure:"sse_streaming"`
+		LoadBalancer     LoadBalancer     `mapstructure:"load_balancer"`
+		BackendDiscovery BackendDiscovery `mapstructure:"backend_discovery"`
 	}
 
 	Turso struct {
@@ -89,6 +90,21 @@ type (
 		Interval time.Duration `mapstructure:"interval"`
 		Timeout  time.Duration `mapstructure:"timeout"`
 		CacheTTL time.Duration `mapstructure:"cache_ttl"`
+	}
+
+	BackendDiscovery struct {
+		Mode     string        `mapstructure:"mode"`
+		ApiUrl   string        `mapstructure:"api_url"`
+		Interval time.Duration `mapstructure:"interval"`
+		Backends []Backend     `mapstructure:"backends"`
+	}
+
+	Backend struct {
+		ID       string   `mapstructure:"id"`
+		BaseURL  string   `mapstructure:"base_url"`
+		Protocol string   `mapstructure:"protocol"`
+		Models   []string `mapstructure:"models"`
+		Weight   float64  `mapstructure:"weight"`
 	}
 )
 
