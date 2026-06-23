@@ -27,6 +27,7 @@ func New(cfg config.SSEStreaming, lgr *slog.Logger) *Relay {
 	}
 }
 
+// bufferPool can store up to 32kb of data before flushing to the client
 var bufferPool = sync.Pool{New: func() any { b := make([]byte, 32*1024); return &b }}
 
 // writeOp carries data or a signal to the write process

@@ -71,7 +71,7 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 	}()
 
-	registry.ConnectionPool.Sync([]model.Backend{
+	backends := []model.Backend{
 		{
 			ID:       "fakevllm-backend-001",
 			BaseURL:  "http://localhost:11434",
@@ -79,7 +79,9 @@ func (s *Server) Run(ctx context.Context) error {
 			Models:   []model.LargeLanguageModelID{"m"},
 			Weight:   1.0,
 		},
-	})
+	}
+	registry.ConnectionPool.Sync(backends)
+	registry.LoadBalancer.Sync(backends)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)

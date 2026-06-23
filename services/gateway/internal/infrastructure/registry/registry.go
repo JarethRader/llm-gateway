@@ -9,6 +9,7 @@ import (
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/application/ports"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/transport"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/connectionpool"
+	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/loadbalancer"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/proxy"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/transport/http"
 )
@@ -21,6 +22,7 @@ type Registry struct {
 
 	ConnectionPool ports.ConnectionPool
 	ProxyRelay     ports.Proxy
+	LoadBalancer   ports.LoadBalancer
 }
 
 func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
@@ -33,10 +35,17 @@ func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
 
 	registry.ConnectionPool = connectionpool.New(cfg.ConnectionPool, lgr.With("component", "connection_pool"))
 	registry.ProxyRelay = proxy.New(cfg.SSEStreaming, lgr.With("component", "proxy_relay"))
+	registry.LoadBalancer = loadbalancer.New(cfg.LoadBalancer, lgr.With("component", "load_balancer"))
 
 	return registry, nil
 }
 
 func (r *Registry) CreateHTTPHandler() transport.Handler {
-	return http.NewHandler(r.lgr.With("component", "transport_http"), func() bool { return true }, r.ConnectionPool, r.ProxyRelay)
+	return http.NewHandler(
+		r.lgr.With("component", "transport_http"),
+		func() bool { return true },
+		r.ConnectionPool,
+		r.ProxyRelay,
+		r.LoadBalancer,
+	)
 }

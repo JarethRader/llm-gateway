@@ -34,6 +34,7 @@ type (
 		Telemetry      Telemetry      `mapstructure:"telemetry"`
 		ConnectionPool ConnectionPool `mapstructure:"connection_pool"`
 		SSEStreaming   SSEStreaming   `mapstructure:"sse_streaming"`
+		LoadBalancer   LoadBalancer   `mapstructure:"load_balancer"`
 	}
 
 	Turso struct {
@@ -67,6 +68,27 @@ type (
 		FrameAware        bool          `mapstructure:"frame_aware"`        // parse SSE frame for token usage
 		FlushEveryWrite   bool          `mapstructure:"flush_every_write"`
 		MaxBodyBytes      int           `mapstructure:"max_body_bytes"`
+	}
+
+	LoadBalancer struct {
+		Weights               RoutingWeights `mapstructure:"weights"`
+		EwmaAlpha             float64        `mapstructure:"ewma_alpha"`
+		MaxInFlightPerBackend int            `mapstructure:"max_in_flight_per_backend"`
+		Scrape                MetricScrape   `mapstructure:"scrape"`
+	}
+
+	RoutingWeights struct {
+		Latency   float64 `mapstructure:"latency"`
+		InFlight  float64 `mapstructure:"in_flight"`
+		Cache     float64 `mapstructure:"cache"`
+		RefTTFTMS int     `mapstructure:"ref_ttft_ms"`
+	}
+
+	MetricScrape struct {
+		Enabled  bool          `mapstructure:"enabled"`
+		Interval time.Duration `mapstructure:"interval"`
+		Timeout  time.Duration `mapstructure:"timeout"`
+		CacheTTL time.Duration `mapstructure:"cache_ttl"`
 	}
 )
 

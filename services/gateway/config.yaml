@@ -8,6 +8,8 @@ app:
   log_level:    DEBUG
   environment:  DEV
 
+shutdown_wait_sec: 30
+
 telemetry:
   enabled: true
   endpoint: localhost:4317
@@ -33,3 +35,17 @@ sse_streaming:
   frame_aware: true
   flush_every_write: true
   max_body_bytes: 4194304
+
+load_balancer:
+  weights:
+    latency: 1.0
+    in_flight: 0.5
+    cache: 0.8
+    ref_ttft_ms: 200
+  ewma_alpha: 0.2
+  max_in_flight_per_backend: 256
+  scrape:
+    enabled: true
+    interval: 2s
+    timeout: 1s
+    cache_ttl: 1s

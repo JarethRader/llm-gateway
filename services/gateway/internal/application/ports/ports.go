@@ -20,3 +20,11 @@ type Proxy interface {
 	RelaySSE(ctx context.Context, dispatchStart time.Time, src io.ReadCloser, w http.ResponseWriter, flusher http.Flusher, cfg config.SSEStreaming) dto.RelayResult
 	SetSSEHeaders(w http.ResponseWriter) (http.Flusher, bool)
 }
+
+type LoadBalancer interface {
+	Select(ctx context.Context, model model.LargeLanguageModelID) (model.BackendID, bool)
+	Observe(b model.BackendID, ttftMS float64)
+	Inc(b model.BackendID)
+	Dec(b model.BackendID)
+	Sync(desired []model.Backend)
+}

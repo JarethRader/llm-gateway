@@ -20,6 +20,7 @@ type handlers struct {
 	ready func() bool
 	pool  ports.ConnectionPool
 	proxy ports.Proxy
+	lb    ports.LoadBalancer
 }
 
 func NewHandler(
@@ -27,12 +28,14 @@ func NewHandler(
 	ready func() bool,
 	pool ports.ConnectionPool,
 	proxy ports.Proxy,
+	lb ports.LoadBalancer,
 ) transport.Handler {
 	return handlers{
 		lgr:   lgr,
 		ready: ready,
 		pool:  pool,
 		proxy: proxy,
+		lb:    lb,
 	}
 }
 
@@ -51,7 +54,13 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			return
 		}
 
-		backendID := h.selectBackend(payload.Model)
+		backendID, ok := h.lb.Select(r.Context(), model.LargeLanguageModelID(payload.Model))
+		if !ok {
+			w.Header().Set("Retry-After", "120")
+			writeJSON(w, http.StatusServiceUnavailable, nil)
+			return
+		}
+
 		backend, ok := h.pool.Client(backendID)
 		if !ok {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("model %s not found", payload.Model)})
@@ -78,6 +87,8 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			req.Header[k] = v
 		}
 
+		h.lb.Inc(backendID)
+		defer h.lb.Dec(backendID)
 		resp, err := backend.Connection.Do(req)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
@@ -86,7 +97,10 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 		defer resp.Body.Close()
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			writeJSON(w, resp.StatusCode, resp.Body)
+			payload, _ := io.ReadAll(resp.Body)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(resp.StatusCode)
+			w.Write(payload)
 			return
 		}
 
@@ -104,12 +118,11 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			MaxBodyBytes:      2048,
 		})
 		h.lgr.Debug("relay result", slog.String("end_reason", result.GetEndReason()))
-	}
-}
 
-// TODO select model based on model name
-func (h handlers) selectBackend(modelName string) model.BackendID {
-	return model.BackendID(modelName)
+		if result.TTFTMS > 0 {
+			h.lb.Observe(backendID, result.TTFTMS)
+		}
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
