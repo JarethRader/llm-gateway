@@ -1,7 +1,6 @@
 package loadbalancer
 
 import (
-	"context"
 	"log/slog"
 	"math"
 	"math/rand/v2"
@@ -51,7 +50,7 @@ func (bl *backendLive) snapshot(m model.LargeLanguageModelID, refTTFTMs float64,
 func (bl *backendLive) observe(sampleMS, alpha float64) {
 	for {
 		old := math.Float64frombits(bl.ttftBits.Load())
-		next := old
+		var next float64
 		if old == 0 {
 			next = sampleMS
 		} else {
@@ -69,6 +68,7 @@ type LoadBalancer struct {
 	mu      sync.RWMutex // guards the map shape only
 	live    map[model.BackendID]*backendLive
 	cfg     config.LoadBalancer
+	lgr     *slog.Logger
 }
 
 func New(cfg config.LoadBalancer, lgr *slog.Logger) ports.LoadBalancer {
@@ -81,11 +81,12 @@ func New(cfg config.LoadBalancer, lgr *slog.Logger) ports.LoadBalancer {
 		},
 		live: make(map[model.BackendID]*backendLive),
 		cfg:  cfg,
+		lgr:  lgr,
 	}
 }
 
 // Select implements [ports.LoadBalancer].
-func (r *LoadBalancer) Select(ctx context.Context, m model.LargeLanguageModelID) (model.BackendID, bool) {
+func (r *LoadBalancer) Select(m model.LargeLanguageModelID) (model.BackendID, bool) {
 	r.mu.RLock()
 	stats := make([]BackendStat, 0, len(r.live))
 	for id, bl := range r.live {
@@ -94,7 +95,7 @@ func (r *LoadBalancer) Select(ctx context.Context, m model.LargeLanguageModelID)
 		stats = append(stats, st)
 	}
 	r.mu.RUnlock()
-	return SelectP2C(stats, r.weights, func(n int) int { return rand.IntN(n) })
+	return SelectP2C(stats, r.weights, rand.IntN)
 }
 
 // Observe implements [ports.LoadBalancer].

@@ -6,7 +6,7 @@ import "github.com/jarethrader/llm-gateway/gateway-service/internal/domain/model
 // by infrastructure from live atomics and passed to the pure selector.
 type BackendStat struct {
 	ID          model.BackendID
-	Serves      bool    //serves the requested model
+	Serves      bool    // serves the requested model
 	Healthy     bool    // passive/active health
 	BreakerOpen bool    // breaker phase == Open
 	TtftEwmaMs  float64 // EWMA of time-to-first-token in ms (primary signal)

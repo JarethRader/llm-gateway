@@ -22,7 +22,7 @@ type Proxy interface {
 }
 
 type LoadBalancer interface {
-	Select(ctx context.Context, model model.LargeLanguageModelID) (model.BackendID, bool)
+	Select(model model.LargeLanguageModelID) (model.BackendID, bool)
 	Observe(b model.BackendID, ttftMS float64)
 	Inc(b model.BackendID)
 	Dec(b model.BackendID)

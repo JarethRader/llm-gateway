@@ -54,7 +54,7 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			return
 		}
 
-		backendID, ok := h.lb.Select(r.Context(), model.LargeLanguageModelID(payload.Model))
+		backendID, ok := h.lb.Select(model.LargeLanguageModelID(payload.Model))
 		if !ok {
 			w.Header().Set("Retry-After", "120")
 			writeJSON(w, http.StatusServiceUnavailable, nil)
@@ -100,7 +100,7 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			payload, _ := io.ReadAll(resp.Body)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(resp.StatusCode)
-			w.Write(payload)
+			_, _ = w.Write(payload)
 			return
 		}
 
