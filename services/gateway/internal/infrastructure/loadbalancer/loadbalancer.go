@@ -31,7 +31,8 @@ func (bl *backendLive) snapshot(m model.LargeLanguageModelID, refTTFTMs float64,
 	}
 
 	var cache uint64
-	if bl.cacheStamp.Load() != 0 && time.Since(time.Unix(0, bl.cacheStamp.Load())) < ttl {
+	stamp := bl.cacheStamp.Load()
+	if stamp != 0 && time.Since(time.Unix(0, stamp)) < ttl {
 		cache = bl.cacheBits.Load()
 	}
 
@@ -39,10 +40,10 @@ func (bl *backendLive) snapshot(m model.LargeLanguageModelID, refTTFTMs float64,
 		Serves:      bl.backend.Serves(m),
 		Healthy:     bl.healthy.Load(),
 		BreakerOpen: false, // TODO get circuit breaker status
-		TtftEwmaMs:  float64(bl.ttftBits.Load()),
+		TtftEwmaMs:  bl.ttftBits.Load(),
 		InFlight:    int(bl.inFlight.Load()),
 		MaxInFlight: int(bl.maxInFlight),
-		CacheUsage:  float64(cache),
+		CacheUsage:  cache,
 		Weight:      bl.backend.Weight,
 	}
 }
@@ -107,8 +108,8 @@ func (r *LoadBalancer) Observe(b model.BackendID, ttftMS float64) {
 
 // Sync implements [ports.LoadBalancer].
 func (r *LoadBalancer) Sync(desired []model.Backend) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	old := r.live
 	next := make(map[model.BackendID]*backendLive, len(desired))
