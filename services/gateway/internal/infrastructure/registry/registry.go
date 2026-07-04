@@ -8,6 +8,7 @@ import (
 
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/application/ports"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/transport"
+	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/authentication"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/connectionpool"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/loadbalancer"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/proxy"
@@ -20,6 +21,7 @@ type Registry struct {
 
 	Prometheus *prometheus.Registry
 
+	Authenticator  ports.Authenticator
 	ConnectionPool ports.ConnectionPool
 	ProxyRelay     ports.Proxy
 	LoadBalancer   ports.LoadBalancer
@@ -33,6 +35,7 @@ func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
 
 	registry.Prometheus = prometheus.NewRegistry()
 
+	registry.Authenticator = authentication.New()
 	registry.ConnectionPool = connectionpool.New(cfg.ConnectionPool, lgr.With("component", "connection_pool"))
 	registry.ProxyRelay = proxy.New(cfg.SSEStreaming, lgr.With("component", "proxy_relay"))
 	registry.LoadBalancer = loadbalancer.New(cfg.LoadBalancer, lgr.With("component", "load_balancer"))

@@ -31,6 +31,7 @@ type (
 
 		Turso Turso `mapstructure:"turso"`
 
+		Authentication   Auth             `mapstructure:"auth"`
 		Telemetry        Telemetry        `mapstructure:"telemetry"`
 		ConnectionPool   ConnectionPool   `mapstructure:"connection_pool"`
 		SSEStreaming     SSEStreaming     `mapstructure:"sse_streaming"`
@@ -48,6 +49,13 @@ type (
 		Endpoint    string  `mapstructure:"endpoint"`
 		Insecure    bool    `mapstructure:"insecure" default:"false"`
 		SampleRatio float64 `mapstructure:"sample_ratio" default:"1.0"`
+	}
+
+	Auth struct {
+		Mode         string        `mapstructure:"mode"`
+		KeyTablePath string        `mapstructure:"key_table_path"`
+		ApiUrl       string        `mapstructure:"api_url"`
+		Interval     time.Duration `mapstructure:"interval"`
 	}
 
 	ConnectionPool struct {

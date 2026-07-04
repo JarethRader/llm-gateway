@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"packages/lib/golang/shared/config"
+	"slices"
 	"time"
 
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/application/ports"
@@ -45,6 +46,10 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 		dispatchStart := time.Now()
 
 		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+			return
+		}
 
 		var payload struct {
 			Model string `json:"model"`
@@ -68,10 +73,6 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 		}
 
 		r.Body.Close()
-		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-			return
-		}
 
 		req, err := http.NewRequestWithContext(
 			r.Context(),
@@ -83,7 +84,22 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			return
 		}
 
-		for k, v := range r.Header {
+		ignoreHeaders := []string{
+			"Authorization",
+			"Connection",
+			"Keep-Alive",
+			"Proxy-Authenticate",
+			"Proxy-Authorization",
+			"Te",
+			"Trailer",
+			"Transfer-Encoding",
+			"Upgrade",
+			"Accept-Encoding",
+		}
+		for k, v := range r.Header.Clone() {
+			if slices.Contains(ignoreHeaders, k) {
+				continue
+			}
 			req.Header[k] = v
 		}
 
@@ -117,7 +133,8 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			FlushEveryWrite:   true,
 			MaxBodyBytes:      2048,
 		})
-		h.lgr.Debug("relay result", slog.String("end_reason", result.GetEndReason()))
+		identity, _ := r.Context().Value(model.IdentityKey).(model.Identity)
+		h.lgr.With(slog.String("key_id", string(identity.KeyID)), slog.String("tier", string(identity.Tier))).DebugContext(r.Context(), "relay result", slog.String("end_reason", result.GetEndReason()))
 
 		if result.TTFTMS > 0 {
 			h.lb.Observe(backendID, result.TTFTMS)

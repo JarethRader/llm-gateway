@@ -53,3 +53,5 @@ test-output
 vitest.config.*.timestamp*
 vite.config.*.timestamp*
 .nx/polygraph
+
+secrets/

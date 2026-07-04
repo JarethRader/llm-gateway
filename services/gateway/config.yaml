@@ -16,6 +16,12 @@ telemetry:
   insecure: true
   sample_ratio: 1.0
 
+auth:
+  mode: static # static | dynamic
+  key_table_path: ./secrets/keys.json
+  api_url: http://localhost:9000
+  interval: 60s
+
 connection_pool:
   dial_timeout: 2s
   tcp_keep_alive: 30s
@@ -51,12 +57,14 @@ load_balancer:
     cache_ttl: 1s
 
 backend_discovery:
-  mode: dynamic # static | dynamic | endpointslice
+  mode: static # static | dynamic | endpointslice
+  # For dynamic mode
   api_url: http://localhost:9000
   interval: 60s
+  # For static mode
   backends:
-    - id: bertha
-      base_url: http://localhost:11434
+    - id: fakevllm
+      base_url: http://127.0.0.1:11434
       protocol: h1
       models:
         - m

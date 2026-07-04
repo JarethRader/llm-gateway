@@ -28,3 +28,8 @@ type LoadBalancer interface {
 	Dec(b model.BackendID)
 	Sync(desired []model.Backend)
 }
+
+type Authenticator interface {
+	Authenticate(ctx context.Context, bearer string) (model.Identity, error)
+	Sync(keys []model.Identity)
+}

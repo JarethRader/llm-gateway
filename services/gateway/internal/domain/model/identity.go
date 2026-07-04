@@ -1,5 +1,7 @@
 package model
 
+import "crypto/sha256"
+
 // ModelID is the LLM model name a client requests, e.g. "llama-3.1-70b".
 type LargeLanguageModelID string
 
@@ -13,10 +15,15 @@ type KeyID string
 type Tier string
 
 type Identity struct {
-	KeyID KeyID
-	Tier  Tier
+	Digest [sha256.Size]byte
+	KeyID  KeyID
+	Tier   Tier
 }
 
 func (i Identity) Valid() bool {
 	return i.KeyID != ""
 }
+
+type contextKey struct{}
+
+var IdentityKey = contextKey{}

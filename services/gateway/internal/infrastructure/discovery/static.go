@@ -7,7 +7,7 @@ import (
 )
 
 func LoadConfig(cfg config.BackendDiscovery) []model.Backend {
-	backends := make([]model.Backend, len(cfg.Backends))
+	backends := make([]model.Backend, 0, len(cfg.Backends))
 	for _, b := range cfg.Backends {
 		var protocol model.Protocol
 		switch b.Protocol {
