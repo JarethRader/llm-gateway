@@ -112,6 +112,7 @@ func (p *Relay) RelaySSE(
 		}
 	}()
 
+	cancelHeartbeat := func() {} // no-op
 	var heartbeatWg sync.WaitGroup
 	if cfg.HeartbeatInterval > 0 {
 		heartbeatWg.Add(1)
@@ -119,6 +120,7 @@ func (p *Relay) RelaySSE(
 			defer heartbeatWg.Done()
 			ticker := time.NewTicker(cfg.HeartbeatInterval)
 			defer ticker.Stop()
+			cancelHeartbeat = func() { ticker.Stop() }
 			for {
 				select {
 				case <-upstreamCtx.Done():
@@ -187,6 +189,8 @@ func (p *Relay) RelaySSE(
 				case writeCh <- op:
 					werr := <-op.done
 					if werr != nil {
+						cancelUpstream()
+						cancelHeartbeat()
 						return completeResult(result, "client_gone", werr, writeCh, &writeWg, &heartbeatWg, heartbeatStop)
 					}
 					result.Bytes += int64(len(frame))
@@ -197,10 +201,14 @@ func (p *Relay) RelaySSE(
 							result.PromptTokens, result.CompletionTokens = p, c
 						}
 						if isDone(frame) {
+							cancelUpstream()
+							cancelHeartbeat()
 							return completeResult(result, "done", nil, writeCh, &writeWg, &heartbeatWg, heartbeatStop)
 						}
 					}
 				case <-upstreamCtx.Done():
+					cancelUpstream()
+					cancelHeartbeat()
 					return completeResult(result, "idle_timeout", upstreamCtx.Err(), writeCh, &writeWg, &heartbeatWg, heartbeatStop)
 				}
 			}
