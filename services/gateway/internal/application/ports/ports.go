@@ -33,3 +33,8 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, bearer string) (model.Identity, error)
 	Sync(keys []model.Identity)
 }
+
+type Limiter interface {
+	Allow(key model.KeyID, model model.LargeLanguageModelID, tokens int) model.Decision
+	Run(ctx context.Context)
+}

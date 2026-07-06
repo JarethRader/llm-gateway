@@ -37,6 +37,7 @@ type (
 		SSEStreaming     SSEStreaming     `mapstructure:"sse_streaming"`
 		LoadBalancer     LoadBalancer     `mapstructure:"load_balancer"`
 		BackendDiscovery BackendDiscovery `mapstructure:"backend_discovery"`
+		RateLimit        RateLimit        `mapstructure:"rate_limit"`
 	}
 
 	Turso struct {
@@ -113,6 +114,24 @@ type (
 		Protocol string   `mapstructure:"protocol"`
 		Models   []string `mapstructure:"models"`
 		Weight   float64  `mapstructure:"weight"`
+	}
+
+	RatePolicy struct {
+		RatePerSec int `mapstructure:"rate_per_sec"`
+		Burst      int `mapstructure:"burst"`
+	}
+
+	RateLimit struct {
+		Enabled       bool                  `mapstructure:"enabled"`
+		TokenWeighted bool                  `mapstructure:"token_weighted"`
+		MaxRetryAfter time.Duration         `mapstructure:"max_retry_after"`
+		SweepInterval time.Duration         `mapstructure:"sweep_interval"`
+		IdleTTL       time.Duration         `mapstructure:"idle_ttl"`
+		Global        RatePolicy            `mapstructure:"global"`
+		DefaultModel  RatePolicy            `mapstructure:"default_model"`
+		DefaultKey    RatePolicy            `mapstructure:"default_key"`
+		PerModel      map[string]RatePolicy `mapstructure:"per_model"`
+		PerKey        map[string]RatePolicy `mapstructure:"per_key"`
 	}
 )
 

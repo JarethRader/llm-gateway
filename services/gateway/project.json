@@ -2,11 +2,11 @@
   "name": "service:gateway",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
-  "sourceRoot": "services/gateway/cmd/server",
+  "sourceRoot": "services/gateway/cmd/gateway",
   "tags": ["type:app", "language:go", "type:service"],
   "targets": {
     "tidy": {
-      "executor": "nx:run-command",
+      "executor": "nx:run-commands",
       "options": {
         "cwd": "{projectRoot}",
         "command": "go mod tidy"
@@ -26,7 +26,7 @@
       "executor": "@naxodev/gonx:build",
       "cache": true,
       "options": {
-        "main": "cmd/server/main.go",
+        "main": "cmd/gateway/main.go",
         "flags": [
           "-ldflags=\"-X main.CommitHash={args.commit} -X main.Tag={args.tag} -s -w\""
         ],
@@ -55,6 +55,13 @@
         "cwd": "{projectRoot}"
       }
     },
+    "vet": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go vet ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fakevllm-test": {
       "executor": "nx:run-commands",
       "cache": false,
@@ -79,9 +86,7 @@
       "executor": "nx:run-commands",
       "options": {
         "commands": [
-          "go test ./...",
-          "coverpkg=./internal/...,./cmd/server -",
-          "coverprofile=cover.out",
+          "go test ./... -coverpkg=./internal/...,./cmd/gateway -coverprofile=cover.out",
           "go tool cover -func=cover.out | tail -1",
           "go tool cover -html=cover.out"
         ],

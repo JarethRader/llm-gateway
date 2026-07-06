@@ -69,3 +69,27 @@ backend_discovery:
       models:
         - m
       weight: 1.0
+
+rate_limit:
+  enabled: true
+  token_weighted: false # TODO implement later
+  max_retry_after: 60s
+  sweep_interval: 30s
+  idle_ttl: 10m
+  global:
+    rate_per_sec: 2000
+    burst: 4000
+  default_model:
+    rate_per_sec: 500
+    burst: 1000
+  default_key:
+    rate_per_sec: 50
+    burst: 100
+  per_model:
+    fakevllm:
+      rate_per_sec: 200
+      burst: 400
+  per_key:
+    "test-user":
+      rate_per_sec: 1000
+      burst: 20000

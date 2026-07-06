@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func (s *Server) RegisterRouteHandlers(m *chi.Mux, r *registry.Registry) error {
+func (s *Server) RegisterRouteHandlers(m *chi.Mux, r *registry.Registry, mw MiddlewareHandlers) error {
 	v1 := chi.NewRouter()
 
 	m.Handle("/metrics", promhttp.HandlerFor(r.Prometheus, promhttp.HandlerOpts{}))
@@ -25,8 +25,17 @@ func (s *Server) RegisterRouteHandlers(m *chi.Mux, r *registry.Registry) error {
 			Status:  http.StatusOK,
 		})
 	})
+	transportHTTP.RegisterHealthRoutes(m, r.CreateHTTPHandler())
 
-	transportHTTP.RegisterRoutes(m, r.CreateHTTPHandler())
+	m.Route("/", func(subrouter chi.Router) {
+		subrouter.Use(mw.Auth(r.Authenticator))
+		subrouter.Use(mw.StreamExtract)
+		if s.cfg.RateLimit.Enabled {
+			subrouter.Use(mw.RateLimit(r.RateLimiter))
+		}
+
+		transportHTTP.RegisterProxyRoutes(subrouter, r.CreateHTTPHandler())
+	})
 
 	m.Mount("/api/v1", v1)
 

@@ -12,6 +12,7 @@ import (
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/connectionpool"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/loadbalancer"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/proxy"
+	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/ratelimit"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/transport/http"
 )
 
@@ -25,6 +26,7 @@ type Registry struct {
 	ConnectionPool ports.ConnectionPool
 	ProxyRelay     ports.Proxy
 	LoadBalancer   ports.LoadBalancer
+	RateLimiter    ports.Limiter
 }
 
 func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
@@ -39,6 +41,7 @@ func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
 	registry.ConnectionPool = connectionpool.New(cfg.ConnectionPool, lgr.With("component", "connection_pool"))
 	registry.ProxyRelay = proxy.New(cfg.SSEStreaming, lgr.With("component", "proxy_relay"))
 	registry.LoadBalancer = loadbalancer.New(cfg.LoadBalancer, lgr.With("component", "load_balancer"))
+	registry.RateLimiter = ratelimit.NewLimiter(cfg.RateLimit)
 
 	return registry, nil
 }

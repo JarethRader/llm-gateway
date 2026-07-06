@@ -40,7 +40,7 @@ func (b Backend) Serves(m LargeLanguageModelID) bool {
 	return false
 }
 
-// Request carries onlywhat the gateway needs to make policy decisions.
+// Request carries only what the gateway needs to make policy decisions.
 // The opaque request body is held in the transport/application layer and
 // never in the domain, so the domain is decoupled from the OpenAI schema.
 type Request struct {
@@ -53,6 +53,10 @@ type Request struct {
 }
 
 type RequestID string
+
+type contextBody struct{}
+
+var BodyKey = contextBody{}
 
 // BackendConnection
 type BackendConnection struct {

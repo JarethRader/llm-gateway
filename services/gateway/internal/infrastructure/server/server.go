@@ -54,7 +54,7 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize registry: %s", err)
 	}
 
-	middleware := NewMiddleware(registry.Authenticator, s.lgr.With("component", "middleware"))
+	middleware := NewMiddleware(s.lgr.With("component", "middleware"))
 
 	server := &http.Server{
 		Addr:    address,
@@ -63,10 +63,13 @@ func (s *Server) Run(ctx context.Context) error {
 	s.router.Use(otelhttp.NewMiddleware((s.cfg.App.Name)))
 	s.router.Use(observability.HTTPMiddleware(nil))
 	s.router.Use(middleware.Recovery)
-	s.router.Use(middleware.Auth)
 
 	if err := authentication.Register(s.cfg.Authentication, s.lgr.With("component", "keysource"), registry.Authenticator.Sync); err != nil {
 		return fmt.Errorf("failed to register key source: %w", err)
+	}
+
+	if s.cfg.RateLimit.Enabled {
+		go registry.RateLimiter.Run(ctx)
 	}
 
 	if err := discovery.Register(ctx, s.cfg.BackendDiscovery, s.lgr.With("component", "discovery"), func(backends []model.Backend) {
@@ -76,7 +79,7 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to register backend discovery: %s", err)
 	}
 
-	if err := s.RegisterRouteHandlers(s.router, registry); err != nil {
+	if err := s.RegisterRouteHandlers(s.router, registry, middleware); err != nil {
 		return fmt.Errorf("failed to register route handlers: %s", err)
 	}
 

@@ -5,10 +5,12 @@ import (
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/transport"
 )
 
-func RegisterRoutes(m *chi.Mux, h transport.Handler) {
+func RegisterProxyRoutes(m chi.Router, h transport.Handler) {
 	// Chat
-	m.Handle("/v1/chat/completions", h.HandleChatCompletion())
+	m.Post("/v1/chat/completions", h.HandleChatCompletion())
+}
 
+func RegisterHealthRoutes(m *chi.Mux, h transport.Handler) {
 	// Health Checks
 	// Liveness probe: returns 200 if the process is alive
 	m.Get("/livez", h.Livez())
