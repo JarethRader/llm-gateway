@@ -38,6 +38,7 @@ type (
 		LoadBalancer     LoadBalancer     `mapstructure:"load_balancer"`
 		BackendDiscovery BackendDiscovery `mapstructure:"backend_discovery"`
 		RateLimit        RateLimit        `mapstructure:"rate_limit"`
+		Admission        Admission        `mapstructure:"admission"`
 	}
 
 	Turso struct {
@@ -132,6 +133,15 @@ type (
 		DefaultKey    RatePolicy            `mapstructure:"default_key"`
 		PerModel      map[string]RatePolicy `mapstructure:"per_model"`
 		PerKey        map[string]RatePolicy `mapstructure:"per_key"`
+	}
+
+	Admission struct {
+		Enabled       bool          `mapstructure:"enabled"`
+		MaxConcurrent int           `mapstructure:"max_concurrent"`
+		MaxQueue      int           `mapstructure:"max_queue"`
+		MaxRetryAfter time.Duration `mapstructure:"max_retry_after"`
+		TokenWeighted bool          `mapstructure:"token_weighted"`
+		EwmaAlpha     float64       `mapstructure:"ewma_alpha"`
 	}
 )
 

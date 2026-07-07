@@ -93,3 +93,10 @@ rate_limit:
     "test-user":
       rate_per_sec: 1000
       burst: 20000
+
+admission:
+  enabled: true
+  max_concurrent: 64
+  max_queue: 256
+  max_retry_after: 30s
+  token_weighted: false # TODO implement later

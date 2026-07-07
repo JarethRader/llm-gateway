@@ -24,6 +24,7 @@ type handlers struct {
 	pool  ports.ConnectionPool
 	proxy ports.Proxy
 	lb    ports.LoadBalancer
+	ad    ports.Admitter
 }
 
 func NewHandler(
@@ -32,6 +33,7 @@ func NewHandler(
 	pool ports.ConnectionPool,
 	proxy ports.Proxy,
 	lb ports.LoadBalancer,
+	ad ports.Admitter,
 ) transport.Handler {
 	return handlers{
 		lgr:   lgr,
@@ -39,6 +41,7 @@ func NewHandler(
 		pool:  pool,
 		proxy: proxy,
 		lb:    lb,
+		ad:    ad,
 	}
 }
 

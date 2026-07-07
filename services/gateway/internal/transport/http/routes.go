@@ -19,3 +19,7 @@ func RegisterHealthRoutes(m *chi.Mux, h transport.Handler) {
 	// Readiness probe: returns 200 if the app is ready to serve traffic
 	m.Get("/readyz", h.Readyz())
 }
+
+func RegisterDebugRoutes(m chi.Router, h transport.Handler) {
+	m.Get("/queue-depth", h.DebugQueueDepth())
+}

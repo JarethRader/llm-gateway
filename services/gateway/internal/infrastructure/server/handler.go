@@ -25,17 +25,28 @@ func (s *Server) RegisterRouteHandlers(m *chi.Mux, r *registry.Registry, mw Midd
 			Status:  http.StatusOK,
 		})
 	})
-	transportHTTP.RegisterHealthRoutes(m, r.CreateHTTPHandler())
 
+	transportHTTPHandler := r.CreateHTTPHandler()
+	transportHTTP.RegisterHealthRoutes(m, transportHTTPHandler)
 	m.Route("/", func(subrouter chi.Router) {
 		subrouter.Use(mw.Auth(r.Authenticator))
+		if s.cfg.Admission.Enabled {
+			subrouter.Use(mw.Admit(r.Admitter))
+		}
 		subrouter.Use(mw.StreamExtract)
 		if s.cfg.RateLimit.Enabled {
 			subrouter.Use(mw.RateLimit(r.RateLimiter))
 		}
 
-		transportHTTP.RegisterProxyRoutes(subrouter, r.CreateHTTPHandler())
+		transportHTTP.RegisterProxyRoutes(subrouter, transportHTTPHandler)
 	})
+
+	if s.cfg.Admission.Enabled {
+		v1.Route("/debug", func(subrouter chi.Router) {
+			subrouter.Use(mw.Auth(r.Authenticator))
+			transportHTTP.RegisterDebugRoutes(subrouter, transportHTTPHandler)
+		})
+	}
 
 	m.Mount("/api/v1", v1)
 

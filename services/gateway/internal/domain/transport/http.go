@@ -1,6 +1,8 @@
 package transport
 
-import "net/http"
+import (
+	"net/http"
+)
 
 type Handler interface {
 	// Chat
@@ -10,4 +12,7 @@ type Handler interface {
 	Livez() http.HandlerFunc
 	Startupz() http.HandlerFunc
 	Readyz() http.HandlerFunc
+
+	// Debug
+	DebugQueueDepth() http.HandlerFunc
 }

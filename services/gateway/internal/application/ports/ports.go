@@ -38,3 +38,13 @@ type Limiter interface {
 	Allow(key model.KeyID, model model.LargeLanguageModelID, tokens int) model.Decision
 	Run(ctx context.Context)
 }
+
+// Permit must be released exactly once when the request completes.
+type Permit interface {
+	Release()
+}
+type Admitter interface {
+	Acquire(ctx context.Context) (Permit, model.Decision)
+	QueueDepth() int
+	InFlight() int
+}
