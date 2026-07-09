@@ -31,6 +31,7 @@ type (
 
 		Turso Turso `mapstructure:"turso"`
 
+		Proxy            Proxy            `mapstructure:"proxy"`
 		Authentication   Auth             `mapstructure:"auth"`
 		Telemetry        Telemetry        `mapstructure:"telemetry"`
 		ConnectionPool   ConnectionPool   `mapstructure:"connection_pool"`
@@ -52,6 +53,10 @@ type (
 		Endpoint    string  `mapstructure:"endpoint"`
 		Insecure    bool    `mapstructure:"insecure" default:"false"`
 		SampleRatio float64 `mapstructure:"sample_ratio" default:"1.0"`
+	}
+
+	Proxy struct {
+		MaxRetries int `mapstructure:"max_retries"`
 	}
 
 	Auth struct {

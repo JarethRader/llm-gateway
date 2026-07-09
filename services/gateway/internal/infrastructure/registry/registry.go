@@ -60,6 +60,7 @@ func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
 
 func (r *Registry) CreateHTTPHandler() transport.Handler {
 	return http.NewHandler(
+		r.cfg.Proxy,
 		r.lgr.With("component", "transport_http"),
 		func() bool { return true },
 		r.ConnectionPool,

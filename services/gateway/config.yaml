@@ -10,6 +10,9 @@ app:
 
 shutdown_wait_sec: 30
 
+proxy:
+  max_retries: 2
+
 telemetry:
   enabled: true
   endpoint: localhost:4317

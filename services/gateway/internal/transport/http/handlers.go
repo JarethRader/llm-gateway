@@ -3,7 +3,6 @@ package http
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,7 +17,21 @@ import (
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/transport"
 )
 
+var IgnoreHeaders = []string{
+	"Authorization",
+	"Connection",
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",
+	"Trailer",
+	"Transfer-Encoding",
+	"Upgrade",
+	"Accept-Encoding",
+}
+
 type handlers struct {
+	cfg   config.Proxy
 	lgr   *slog.Logger
 	ready func() bool
 	pool  ports.ConnectionPool
@@ -29,6 +42,7 @@ type handlers struct {
 }
 
 func NewHandler(
+	cfg config.Proxy,
 	lgr *slog.Logger,
 	ready func() bool,
 	pool ports.ConnectionPool,
@@ -38,6 +52,7 @@ func NewHandler(
 	cbr ports.CircuitBreaker,
 ) transport.Handler {
 	return handlers{
+		cfg:   cfg,
 		lgr:   lgr,
 		ready: ready,
 		pool:  pool,
@@ -64,112 +79,121 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			return
 		}
 
-		const maxSelectAttempts = 3
+		if connHeaders := r.Header.Get("Connection"); connHeaders != "" {
+			for _, header := range strings.Split(connHeaders, ",") {
+				IgnoreHeaders = append(IgnoreHeaders, http.CanonicalHeaderKey(strings.TrimSpace(header)))
+			}
+		}
+
+		dispatches := 0
 		var (
 			backendID model.BackendID
 			probe     bool
 			tried     []model.BackendID
-			selected  bool
+			resp      *http.Response
+			gotResp   bool
 		)
-		for len(tried) < maxSelectAttempts {
+		for dispatches < max(h.cfg.MaxRetries, 1) {
 			id, ok := h.lb.Select(model.LargeLanguageModelID(payload.Model), tried)
 			if !ok {
+				h.lgr.ErrorContext(ctx, "no eligible backends left to try")
 				break // no eligible backends left to try
 			}
+
 			admit, isProbe := h.cbr.Allow(id, dispatchStart)
-			if admit {
-				backendID, probe, selected = id, isProbe, true
-				break
+			if !admit {
+				h.lgr.WarnContext(ctx, "breaker gated backend", slog.Any("backend", id))
+				continue // breaker gated backend
 			}
-			tried = append(tried, id)
+
+			backend, ok := h.pool.Client(id)
+			if !ok {
+				h.cbr.Release(id)
+				continue
+			}
+
+			upstreamURL, err := url.JoinPath(backend.Model.BaseURL, "/v1/chat/completions")
+			if err != nil {
+				h.lgr.ErrorContext(ctx, "LLM server url is misconfigured", slog.Any("error", err))
+				h.cbr.Release(id)
+				continue
+			}
+
+			req, err := http.NewRequestWithContext(
+				ctx,
+				r.Method,
+				upstreamURL,
+				bytes.NewReader(bodyBytes))
+			if err != nil {
+				h.lgr.WarnContext(ctx, "failed to reconstruct request with context", slog.Any("backend", id))
+				h.cbr.Release(id)
+				continue
+			}
+
+			for k, v := range r.Header.Clone() {
+				if slices.Contains(IgnoreHeaders, k) {
+					continue
+				}
+				req.Header[k] = v
+			}
+
+			if !isProbe {
+				h.lb.Inc(id)
+			}
+			dispatches++
+			resp, err = backend.Connection.Do(req)
+			if err != nil {
+				h.lgr.ErrorContext(ctx, "failed to connect to upstream", slog.Any("error", err))
+				h.cbr.RecordFailure(id)
+				if !isProbe {
+					h.lb.Dec(id)
+				}
+				tried = append(tried, id)
+				continue
+			}
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+
+				if h.cbr.IsFailure(resp.StatusCode) {
+					h.lgr.ErrorContext(ctx, "received error from upstream", slog.Any("backend", id), slog.Int("status_code", resp.StatusCode))
+					h.cbr.RecordFailure(id)
+					if !isProbe {
+						h.lb.Dec(id)
+					}
+					tried = append(tried, id)
+					continue
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(resp.StatusCode)
+				_, _ = w.Write(body)
+				h.cbr.Release(id)
+				if !isProbe {
+					h.lb.Dec(id)
+				}
+				return
+			}
+
+			backendID, probe, gotResp = id, isProbe, true
+			break
 		}
-		if !selected {
+
+		if !gotResp {
 			w.Header().Set("Retry-After", "120")
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "no available backend"})
 			return
 		}
-
-		backend, ok := h.pool.Client(backendID)
-		if !ok {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("model %s not found", payload.Model)})
-			h.cbr.Release(backendID)
-			return
-		}
-
-		upstreamURL, err := url.JoinPath(backend.Model.BaseURL, "/v1/chat/completions")
-		if err != nil {
-			h.lgr.ErrorContext(ctx, "LLM server url is misconfigured", slog.Any("error", err))
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "backend endpoint is misconfigured"})
-			h.cbr.Release(backendID)
-			return
-		}
-
-		req, err := http.NewRequestWithContext(
-			ctx,
-			r.Method,
-			upstreamURL,
-			bytes.NewReader(bodyBytes))
-		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-			h.cbr.Release(backendID)
-			return
-		}
-
-		ignoreHeaders := []string{
-			"Authorization",
-			"Connection",
-			"Keep-Alive",
-			"Proxy-Authenticate",
-			"Proxy-Authorization",
-			"Te",
-			"Trailer",
-			"Transfer-Encoding",
-			"Upgrade",
-			"Accept-Encoding",
-		}
-		if connHeaders := r.Header.Get("Connection"); connHeaders != "" {
-			for _, header := range strings.Split(connHeaders, ",") {
-				ignoreHeaders = append(ignoreHeaders, http.CanonicalHeaderKey(strings.TrimSpace(header)))
-			}
-		}
-		for k, v := range r.Header.Clone() {
-			if slices.Contains(ignoreHeaders, k) {
-				continue
-			}
-			req.Header[k] = v
-		}
-
-		if !probe {
-			h.lb.Inc(backendID)
-			defer h.lb.Dec(backendID)
-		}
-		resp, err := backend.Connection.Do(req)
-		if err != nil {
-			h.lgr.ErrorContext(ctx, "failed to connect to upstream", slog.Any("error", err))
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream unavailable"})
-			h.cbr.RecordFailure(backendID)
-			return
-		}
 		defer resp.Body.Close()
-
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			payload, _ := io.ReadAll(resp.Body)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(resp.StatusCode)
-			_, _ = w.Write(payload)
-
-			if h.cbr.IsFailure(resp.StatusCode) {
-				h.cbr.RecordFailure(backendID)
-			} else {
-				h.cbr.Release(backendID)
-			}
-			return
-		}
 
 		flusher, ok := h.proxy.SetSSEHeaders(w)
 		if !ok {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "streaming not supported"})
 			h.cbr.Release(backendID)
+			if !probe {
+				h.lb.Dec(backendID)
+			}
 			return
 		}
 
@@ -187,9 +211,11 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			h.lb.Observe(backendID, result.TTFTMS)
 		}
 
+		if !probe {
+			h.lb.Dec(backendID)
+		}
 		switch result.EndReason {
-		case "done":
-		case "eof":
+		case "done", "eof":
 			h.cbr.RecordSuccess(backendID)
 		case "client_gone":
 			h.cbr.Release(backendID)
