@@ -75,6 +75,7 @@ func (s *Server) Run(ctx context.Context) error {
 	if err := discovery.Register(ctx, s.cfg.BackendDiscovery, s.lgr.With("component", "discovery"), func(backends []model.Backend) {
 		registry.ConnectionPool.Sync(backends)
 		registry.LoadBalancer.Sync(backends)
+		registry.CircuitBreaker.Sync(backends)
 	}); err != nil {
 		return fmt.Errorf("failed to register backend discovery: %s", err)
 	}

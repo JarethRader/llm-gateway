@@ -21,6 +21,7 @@ type backendLive struct {
 	cacheBits   atomic.Uint64 // float64 cache usage; updated by scraper on /metrics endpoint
 	cacheStamp  atomic.Int64  // unixnano of last scrape
 	maxInFlight int64
+	isOpen      func(b model.BackendID) bool
 }
 
 func (bl *backendLive) snapshot(m model.LargeLanguageModelID, refTTFTMs float64, ttl time.Duration) BackendStat {
@@ -38,7 +39,7 @@ func (bl *backendLive) snapshot(m model.LargeLanguageModelID, refTTFTMs float64,
 	return BackendStat{
 		Serves:      bl.backend.Serves(m),
 		Healthy:     bl.healthy.Load(),
-		BreakerOpen: false, // TODO get circuit breaker status
+		BreakerOpen: bl.isOpen(bl.backend.ID),
 		TtftEwmaMs:  ttft,
 		InFlight:    int(bl.inFlight.Load()),
 		MaxInFlight: int(bl.maxInFlight),
@@ -67,11 +68,12 @@ type LoadBalancer struct {
 	weights Weights
 	mu      sync.RWMutex // guards the map shape only
 	live    map[model.BackendID]*backendLive
+	cbr     ports.CircuitBreaker
 	cfg     config.LoadBalancer
 	lgr     *slog.Logger
 }
 
-func New(cfg config.LoadBalancer, lgr *slog.Logger) ports.LoadBalancer {
+func New(cfg config.LoadBalancer, lgr *slog.Logger, cbr ports.CircuitBreaker) ports.LoadBalancer {
 	return &LoadBalancer{
 		weights: Weights{
 			Latency:   cfg.Weights.Latency,
@@ -80,13 +82,14 @@ func New(cfg config.LoadBalancer, lgr *slog.Logger) ports.LoadBalancer {
 			RefTTFTMs: float64(cfg.Weights.RefTTFTMS),
 		},
 		live: make(map[model.BackendID]*backendLive),
+		cbr:  cbr,
 		cfg:  cfg,
 		lgr:  lgr,
 	}
 }
 
 // Select implements [ports.LoadBalancer].
-func (r *LoadBalancer) Select(m model.LargeLanguageModelID) (model.BackendID, bool) {
+func (r *LoadBalancer) Select(m model.LargeLanguageModelID, exclude []model.BackendID) (model.BackendID, bool) {
 	r.mu.RLock()
 	stats := make([]BackendStat, 0, len(r.live))
 	for id, bl := range r.live {
@@ -95,7 +98,7 @@ func (r *LoadBalancer) Select(m model.LargeLanguageModelID) (model.BackendID, bo
 		stats = append(stats, st)
 	}
 	r.mu.RUnlock()
-	return SelectP2C(stats, r.weights, rand.IntN)
+	return SelectP2C(stats, r.weights, rand.IntN, exclude)
 }
 
 // Observe implements [ports.LoadBalancer].
@@ -122,6 +125,10 @@ func (r *LoadBalancer) Sync(desired []model.Backend) {
 		next[b.ID] = &backendLive{
 			backend:     b,
 			maxInFlight: int64(r.cfg.MaxInFlightPerBackend),
+			isOpen: func(b model.BackendID) bool {
+				snap := r.cbr.Snapshot(b)
+				return snap.IsOpen
+			},
 		}
 		next[b.ID].healthy.Store(true)
 	}

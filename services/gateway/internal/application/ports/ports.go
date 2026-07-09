@@ -22,7 +22,7 @@ type Proxy interface {
 }
 
 type LoadBalancer interface {
-	Select(model model.LargeLanguageModelID) (model.BackendID, bool)
+	Select(model model.LargeLanguageModelID, exclude []model.BackendID) (model.BackendID, bool)
 	Observe(b model.BackendID, ttftMS float64)
 	Inc(b model.BackendID)
 	Dec(b model.BackendID)
@@ -47,4 +47,15 @@ type Admitter interface {
 	Acquire(ctx context.Context) (Permit, model.Decision)
 	QueueDepth() int
 	InFlight() int
+}
+
+type CircuitBreaker interface {
+	Allow(b model.BackendID, now time.Time) (bool, bool)
+	Snapshot(b model.BackendID) model.CircuitBreakerState
+	IsProbeReady(b model.BackendID) bool
+	RecordSuccess(b model.BackendID)
+	RecordFailure(b model.BackendID)
+	Release(b model.BackendID)
+	Sync(desired []model.Backend)
+	IsFailure(statusCode int) bool
 }

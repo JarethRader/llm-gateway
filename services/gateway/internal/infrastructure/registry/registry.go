@@ -10,6 +10,7 @@ import (
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/transport"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/admission"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/authentication"
+	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/circuitbreaker"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/connectionpool"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/loadbalancer"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/proxy"
@@ -29,6 +30,7 @@ type Registry struct {
 	LoadBalancer   ports.LoadBalancer
 	RateLimiter    ports.Limiter
 	Admitter       ports.Admitter
+	CircuitBreaker ports.CircuitBreaker
 }
 
 func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
@@ -42,7 +44,14 @@ func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
 	registry.Authenticator = authentication.New()
 	registry.ConnectionPool = connectionpool.New(cfg.ConnectionPool, lgr.With("component", "connection_pool"))
 	registry.ProxyRelay = proxy.New(cfg.SSEStreaming, lgr.With("component", "proxy_relay"))
-	registry.LoadBalancer = loadbalancer.New(cfg.LoadBalancer, lgr.With("component", "load_balancer"))
+
+	if cfg.Circuit.Enabled {
+		registry.CircuitBreaker = circuitbreaker.NewManager(cfg.Circuit, lgr.With("component", "circuit_breaker"))
+	} else {
+		registry.CircuitBreaker = circuitbreaker.NewNoopManager()
+	}
+
+	registry.LoadBalancer = loadbalancer.New(cfg.LoadBalancer, lgr.With("component", "load_balancer"), registry.CircuitBreaker)
 	registry.RateLimiter = ratelimit.NewLimiter(cfg.RateLimit)
 	registry.Admitter = admission.NewController(cfg.Admission)
 
@@ -57,5 +66,6 @@ func (r *Registry) CreateHTTPHandler() transport.Handler {
 		r.ProxyRelay,
 		r.LoadBalancer,
 		r.Admitter,
+		r.CircuitBreaker,
 	)
 }

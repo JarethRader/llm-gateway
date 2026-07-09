@@ -3,9 +3,8 @@ package model
 import "errors"
 
 var (
-	ErrEmptyBearer = errors.New("authentication: empty bearer token")
-	ErrUnknownKey  = errors.New("authentication: unknown key")
-
+	ErrEmptyBearer    = errors.New("empty bearer token")
+	ErrUnknownKey     = errors.New("unknown key")
 	ErrModelNotFound  = errors.New("model not found")
 	ErrNoBackend      = errors.New("no eligible backend")
 	ErrRateLimited    = errors.New("rate limited")

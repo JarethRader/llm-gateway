@@ -39,6 +39,7 @@ type (
 		BackendDiscovery BackendDiscovery `mapstructure:"backend_discovery"`
 		RateLimit        RateLimit        `mapstructure:"rate_limit"`
 		Admission        Admission        `mapstructure:"admission"`
+		Circuit          Circuit          `mapstructure:"circuit"`
 	}
 
 	Turso struct {
@@ -142,6 +143,20 @@ type (
 		MaxRetryAfter time.Duration `mapstructure:"max_retry_after"`
 		TokenWeighted bool          `mapstructure:"token_weighted"`
 		EwmaAlpha     float64       `mapstructure:"ewma_alpha"`
+	}
+
+	Circuit struct {
+		Enabled         bool          `mapstructure:"enabled"`
+		FailureRatio    float64       `mapstructure:"failure_ratio"`
+		MinRequests     int           `mapstructure:"min_requests"`
+		Window          time.Duration `mapstructure:"window"`
+		Buckets         int           `mapstructure:"buckets"`
+		OpenBase        time.Duration `mapstructure:"open_base"`
+		OpenMax         time.Duration `mapstructure:"open_max"`
+		BackoffFactor   float64       `mapstructure:"backoff_factor"`
+		HalfOpenMax     int32         `mapstructure:"half_open_max"`
+		HalfOpenSuccess int32         `mapstructure:"half_open_success"`
+		FailureStatuses []int         `mapstructure:"failure_statuses"`
 	}
 )
 

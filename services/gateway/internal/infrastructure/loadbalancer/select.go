@@ -1,15 +1,19 @@
 package loadbalancer
 
-import "github.com/jarethrader/llm-gateway/gateway-service/internal/domain/model"
+import (
+	"slices"
 
-// SelectP2C implements Power-of-Twi-Choised over eligible backends. rnd(n)
+	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/model"
+)
+
+// SelectP2C implements Power-of-Two-Choices over eligible backends. rnd(n)
 // must return a uniform int in [0,n); infrastructure supplies it (math/rand/v2).
 // Returns the chosen BackendID and true, or false if no backend is eligible.
-func SelectP2C(stats []BackendStat, w Weights, rnd func(n int) int) (model.BackendID, bool) {
+func SelectP2C(stats []BackendStat, w Weights, rnd func(n int) int, exclude []model.BackendID) (model.BackendID, bool) {
 	// collect eligible indices
 	elig := stats[:0:0]
 	for _, s := range stats {
-		if s.Eligible() {
+		if s.Eligible() && !slices.Contains(exclude, s.ID) {
 			elig = append(elig, s)
 		}
 	}

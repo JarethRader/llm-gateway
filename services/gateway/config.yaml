@@ -100,3 +100,16 @@ admission:
   max_queue: 256
   max_retry_after: 30s
   token_weighted: false # TODO implement later
+
+circuit:
+  enabled: true
+  failure_ratio: 0.5
+  min_requests: 20
+  window: 10s
+  buckets: 10
+  open_base: 5s
+  open_max: 60s
+  backoff_factor: 2.0
+  half_open_max: 3
+  half_open_success: 3
+  failure_statuses: [500, 502, 503, 504, 429]

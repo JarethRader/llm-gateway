@@ -25,6 +25,7 @@ type handlers struct {
 	proxy ports.Proxy
 	lb    ports.LoadBalancer
 	ad    ports.Admitter
+	cbr   ports.CircuitBreaker
 }
 
 func NewHandler(
@@ -34,6 +35,7 @@ func NewHandler(
 	proxy ports.Proxy,
 	lb ports.LoadBalancer,
 	ad ports.Admitter,
+	cbr ports.CircuitBreaker,
 ) transport.Handler {
 	return handlers{
 		lgr:   lgr,
@@ -42,15 +44,17 @@ func NewHandler(
 		proxy: proxy,
 		lb:    lb,
 		ad:    ad,
+		cbr:   cbr,
 	}
 }
 
 // HandleChatCompletion implements [transport.Handler].
 func (h handlers) HandleChatCompletion() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		dispatchStart := time.Now()
 
-		bodyBytes := r.Context().Value(model.BodyKey).([]byte)
+		bodyBytes := ctx.Value(model.BodyKey).([]byte)
 
 		var payload struct {
 			Model string `json:"model"`
@@ -60,33 +64,54 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			return
 		}
 
-		backendID, ok := h.lb.Select(model.LargeLanguageModelID(payload.Model))
-		if !ok {
+		const maxSelectAttempts = 3
+		var (
+			backendID model.BackendID
+			probe     bool
+			tried     []model.BackendID
+			selected  bool
+		)
+		for len(tried) < maxSelectAttempts {
+			id, ok := h.lb.Select(model.LargeLanguageModelID(payload.Model), tried)
+			if !ok {
+				break // no eligible backends left to try
+			}
+			admit, isProbe := h.cbr.Allow(id, dispatchStart)
+			if admit {
+				backendID, probe, selected = id, isProbe, true
+				break
+			}
+			tried = append(tried, id)
+		}
+		if !selected {
 			w.Header().Set("Retry-After", "120")
-			writeJSON(w, http.StatusServiceUnavailable, nil)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "no available backend"})
 			return
 		}
 
 		backend, ok := h.pool.Client(backendID)
 		if !ok {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("model %s not found", payload.Model)})
+			h.cbr.Release(backendID)
 			return
 		}
 
 		upstreamURL, err := url.JoinPath(backend.Model.BaseURL, "/v1/chat/completions")
 		if err != nil {
-			h.lgr.ErrorContext(r.Context(), "LLM server url is misconfigured", slog.Any("error", err))
+			h.lgr.ErrorContext(ctx, "LLM server url is misconfigured", slog.Any("error", err))
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "backend endpoint is misconfigured"})
+			h.cbr.Release(backendID)
 			return
 		}
 
 		req, err := http.NewRequestWithContext(
-			r.Context(),
+			ctx,
 			r.Method,
 			upstreamURL,
 			bytes.NewReader(bodyBytes))
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			h.cbr.Release(backendID)
 			return
 		}
 
@@ -114,12 +139,15 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			req.Header[k] = v
 		}
 
-		h.lb.Inc(backendID)
-		defer h.lb.Dec(backendID)
+		if !probe {
+			h.lb.Inc(backendID)
+			defer h.lb.Dec(backendID)
+		}
 		resp, err := backend.Connection.Do(req)
 		if err != nil {
-			h.lgr.ErrorContext(r.Context(), "failed to connect to upstream", slog.Any("error", err))
+			h.lgr.ErrorContext(ctx, "failed to connect to upstream", slog.Any("error", err))
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream unavailable"})
+			h.cbr.RecordFailure(backendID)
 			return
 		}
 		defer resp.Body.Close()
@@ -129,27 +157,44 @@ func (h handlers) HandleChatCompletion() http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(resp.StatusCode)
 			_, _ = w.Write(payload)
+
+			if h.cbr.IsFailure(resp.StatusCode) {
+				h.cbr.RecordFailure(backendID)
+			} else {
+				h.cbr.Release(backendID)
+			}
 			return
 		}
 
 		flusher, ok := h.proxy.SetSSEHeaders(w)
 		if !ok {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "streaming not supported"})
+			h.cbr.Release(backendID)
 			return
 		}
 
-		result := h.proxy.RelaySSE(r.Context(), dispatchStart, resp.Body, w, flusher, config.SSEStreaming{
+		result := h.proxy.RelaySSE(ctx, dispatchStart, resp.Body, w, flusher, config.SSEStreaming{
 			IdleTimeout:       30 * time.Second,
 			HeartbeatInterval: 15 * time.Second,
 			FrameAware:        true,
 			FlushEveryWrite:   true,
 			MaxBodyBytes:      2048,
 		})
-		identity, _ := r.Context().Value(model.IdentityKey).(model.Identity)
+		identity, _ := ctx.Value(model.IdentityKey).(model.Identity)
 		h.lgr.With(slog.String("key_id", string(identity.KeyID)), slog.String("tier", string(identity.Tier))).DebugContext(r.Context(), "relay result", slog.String("end_reason", result.GetEndReason()))
 
-		if result.TTFTMS > 0 {
+		if result.TTFTMS > 0 && !probe {
 			h.lb.Observe(backendID, result.TTFTMS)
+		}
+
+		switch result.EndReason {
+		case "done":
+		case "eof":
+			h.cbr.RecordSuccess(backendID)
+		case "client_gone":
+			h.cbr.Release(backendID)
+		default:
+			h.cbr.RecordFailure(backendID)
 		}
 	}
 }
