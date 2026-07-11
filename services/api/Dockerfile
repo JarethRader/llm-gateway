@@ -10,14 +10,14 @@ WORKDIR /
 
 RUN apk add -U --no-cache ca-certificates
 
-COPY services/gateway/dist/gateway .
+COPY services/api/dist/api .
 
 FROM scratch
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder ./gateway .
+COPY --from=builder /api .
 
 USER nonroot:nonroot
-EXPOSE 8848
+EXPOSE 9000
 
-CMD [ "./gateway" ]
+CMD [ "./api" ]

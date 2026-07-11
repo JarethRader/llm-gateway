@@ -1,0 +1,66 @@
+{
+  "name": "infra:helm",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "root": "infrastructure/helm",
+  "sourceRoot": "infrastructure/helm",
+  "targets": {
+    "values": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "helm show values infrastructure/helm/"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "helm lint infrastructure/helm/ --strict"
+      }
+    },
+    "render": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "helm template infrastructure/helm/"
+      }
+    },
+    "conform": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "helm template infrastructure/helm/ | kubeconform -strict -summary -kubernetes-version 1.30.0 -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "helm template -f infrastructure/helm/ci/kind-values.yaml infrastructure/helm",
+          "helm template -f infrastructure/helm/ci/ingress-values.yaml infrastructure/helm"
+        ]
+      }
+    },
+    "helm": {
+      "executor": "@nx-extensions/helm:package",
+      "options": {
+        "chartFolder": "infrastructure/helm/chart",
+        "outputFolder": "{workspaceRoot}/dist/charts",
+        "push": false,
+        "remote": "{args.registry}",
+        "dependencies": {
+          "update": true,
+          "build": true
+        }
+      }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "nx run service:gateway:docker-build --registry={args.registry} --tag={args.tag}",
+          "nx run service:api:docker-build --registry={args.registry} --tag={args.tag}",
+          "nx run infra:helm:helm --registry={args.registry}"
+        ],
+        "parallel": false
+      }
+    }
+  }
+}

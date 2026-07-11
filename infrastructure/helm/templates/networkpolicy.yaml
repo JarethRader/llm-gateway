@@ -1,0 +1,81 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "llm-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "llm-gateway.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+{{- if .Values.networkPolicy.allowDNS }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  labels:
+    {{- include "llm-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "llm-gateway.selectorLabels" . | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end }}
+{{- if .Values.networkPolicy.allowIngress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress
+  labels:
+    {{- include "llm-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "llm-gateway.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+  {{- with .Values.networkPolicy.ingressFrom }}
+  - from:
+    {{- toYaml . | nindent 4 }}
+    ports:
+    - {protocol: TCP, port: 8848}
+  {{- else }}
+  - ports:
+    - {protocol: TCP, port: 8848}
+  {{- end }}
+{{- end }}
+{{- if .Values.networkPolicy.egressTo }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress
+  labels:
+    {{- include "llm-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "llm-gateway.selectorLabels" . | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    {{- toYaml .Values.networkPolicy.egressTo | nindent 2 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: llm-gateway
+description: Kubernetes-native LLM inference gateway
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.25.0-0"
+home: https://github.com/jarethrader/llm-gateway
+sources:
+  - https://github.com/jarethrader/llm-gateway
+maintainers:
+  - name: Jareth Rader
+    email: jarethrader@gmail.com
+keywords: [llm, gateway, inference, routing]
+annotations:
+  artifacthub.io/category: ai-machine-learning
+  artifacthub.io/license: Apache-2.0

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "llm-gateway.name" . }}-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "llm-gateway.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: {{ include "llm-gateway.fullname" . }}
+  ports:
+  - protocol: TCP
+    port: {{ .Values.service.port }}
+    targetPort: http
+  type: {{ .Values.service.type }}

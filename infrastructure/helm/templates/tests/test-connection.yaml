@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "llm-gateway.fullname" . }}-test-connection"
+  labels:
+    {{- include "llm-gateway.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  securityContext: {{- toYaml .Values.securityContext.pod | nindent 8 }}
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "llm-gateway.fullname" . }}:{{ .Values.service.port }}/health']
+      securityContext: {{- toYaml .Values.securityContext.container | nindent 8 }}
+  restartPolicy: Never

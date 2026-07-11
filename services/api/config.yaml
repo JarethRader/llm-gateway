@@ -2,7 +2,7 @@ namespace:    "llm-gateway"
 owner:        "jarethrader@gmail.com"
 app:
   name:         "api"
-  version:      "1.0.0"
+  version:      "0.1.0"
   addr:         "localhost"
   port:         ":9000"
   log_level:    DEBUG

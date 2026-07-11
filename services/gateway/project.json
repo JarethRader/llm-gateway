@@ -2,6 +2,7 @@
   "name": "service:gateway",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
+  "root": "services/gateway",
   "sourceRoot": "services/gateway/cmd/gateway",
   "tags": ["type:app", "language:go", "type:service"],
   "targets": {
@@ -25,6 +26,7 @@
     "build": {
       "executor": "@naxodev/gonx:build",
       "cache": true,
+      "inputs": ["{projectRoot}/go.mod", "{projectRoot}/go.sum", "{projectRoot}/**/*.{go,json,sql}"],
       "options": {
         "main": "cmd/gateway/main.go",
         "flags": [
@@ -34,8 +36,7 @@
         "env": {
           "CGO_ENABLED": "0",
           "GOOS": "linux",
-          "GOARCH": "amd64",
-          "GIN_MODE": "release"
+          "GOARCH": "amd64"
         },
         "outputPath": "{projectRoot}/dist/"
       },
@@ -49,11 +50,7 @@
       }
     },
     "test": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "go test ./...",
-        "cwd": "{projectRoot}"
-      }
+      "executor": "@naxodev/gonx:test"
     },
     "vet": {
       "executor": "nx:run-commands",
@@ -91,6 +88,13 @@
           "go tool cover -html=cover.out"
         ],
         "cwd": "{projectRoot}"
+      }
+    },
+    "docker-build": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "docker buildx build --platform linux/amd64 --tag {args.registry}/llm-gateway:{args.tag} --push --build-arg GIT_COMMIT={args.commit} --build-arg GIT_TAG={args.tag} --file services/gateway/Dockerfile ."
       }
     }
   }

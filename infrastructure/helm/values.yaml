@@ -1,0 +1,355 @@
+# Default values for llm-gateway.
+
+# -- Container image configuration
+image:
+  # -- Image repository
+  repository: ghcr.io/jarethrader/llm-gateway
+  # -- Image tag (defaults to Chart.appVersion)
+  tag: ""
+  # -- Image digest
+  digest: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Docker registry secrets for pulling images
+imagePullSecrets: []
+# -- String to partially override llm-gateway.fullname template
+nameOverride: ""
+# -- String to fully override llm-gateway.fullname template
+fullnameOverride: ""
+
+# -- Number of replicas to deploy
+replicaCount: 1
+
+serviceAccount:
+  # -- Annotations for the service account
+  annotations: {}
+
+rbac:
+  # -- Create RBAC resources
+  create: true
+  # -- ConfigMap names to grant RBAC access to
+  configMapNames: []
+  # - my-configmap
+
+service:
+  # -- Kubernetes service type
+  type: ClusterIP
+  # -- Service port
+  port: 8080
+
+ingress:
+  # -- Enable ingress resource
+  enabled: false
+  # -- Ingress className
+  className: ""
+  # -- Ingress hosts configuration
+  hosts:
+  # -- Ingress TLS configuration
+  tls: []
+
+# -- Gateway API configuration (alternative to Ingress)
+gateway:
+  # -- Enable Gateway resource
+  enabled: true
+  # -- Annotations for the Gateway resource
+  annotations: {}
+  gateway:
+    # -- GatewayClass name to reference
+    gatewayClassName: ""
+    # -- Gateway name
+    gateway: default
+    # -- Gateway section name
+    sectionName: http
+  # -- Gateway hosts configuration
+  hosts:
+  # - hostname: gateway.example.com
+  # -- Gateway path routing rules
+  paths:
+  # - path: /
+  #   pathType: PathPrefix
+  tls:
+    # -- TLS secret name for the Gateway
+    secretName: ""
+
+# -- Application configuration (rendered as configmap)
+config:
+  # -- Kubernetes namespace for the gateway
+  namespace: llm-gateway
+  # -- Owner identifier for this deployment
+  owner: ""
+  app:
+    # -- Application name
+    name: gateway
+    # -- Application version
+    version: "0.1.0"
+    # -- Bind address
+    addr: "0.0.0.0"
+    # -- Bind port
+    port: ":8848"
+    # -- Log level (DEBUG, INFO, WARN, ERROR)
+    log_level: INFO
+    # -- Deployment environment
+    environment: PROD
+  # -- Graceful shutdown wait time in seconds
+  shutdown_wait_sec: 30
+  proxy:
+    # -- Maximum number of retries for proxied requests
+    max_retries: 2
+  telemetry:
+    # -- Enable telemetry collection
+    enabled: true
+    # -- OTLP endpoint for telemetry
+    endpoint: ""
+    # -- Allow insecure (non-TLS) telemetry connection
+    insecure: false
+    # -- Telemetry sampling ratio (0.0-1.0)
+    sample_ratio: 1.0
+  auth:
+    # -- Authentication mode (static, dynamic)
+    mode: static
+    # -- Path to API keys file
+    key_table_path: /secrets/keys.json
+    # -- API URL for dynamic key fetching
+    api_url: ""
+    # -- Dynamic key refresh interval
+    interval: 60s
+  connection_pool:
+    # -- TCP dial timeout
+    dial_timeout: 2s
+    # -- TCP keep-alive interval
+    tcp_keep_alive: 30s
+    # -- Maximum idle connections in pool
+    max_idle_conns: 512
+    # -- Maximum idle connections per host
+    max_idle_conns_per_host: 64
+    # -- Maximum connections per host (0 = unlimited)
+    max_conns_per_host: 0
+    # -- Idle connection timeout
+    idle_conn_timeout: 90s
+    # -- TLS handshake timeout
+    tls_handshake_timeout: 3s
+    # -- TCP write buffer size in bytes
+    write_buffer_size: 65536
+    # -- TCP read buffer size in bytes
+    read_buffer_size: 65536
+    # -- HTTP/2 read idle timeout
+    h2_read_idle_timeout: 15s
+    # -- HTTP/2 ping timeout
+    h2_ping_timeout: 5s
+  sse_streaming:
+    # -- SSE stream idle timeout
+    idle_timeout: 30s
+    # -- SSE heartbeat interval
+    heartbeat_interval: 5s
+    # -- Enable frame-aware streaming
+    frame_aware: true
+    # -- Flush response on every write
+    flush_every_write: true
+    # -- Maximum body size in bytes
+    max_body_bytes: 4194304
+  load_balancer:
+    weights:
+      # -- Weight for latency in load balancing decision
+      latency: 1.0
+      # -- Weight for in-flight requests
+      in_flight: 0.5
+      # -- Weight for cache hit rate
+      cache: 0.8
+      # -- Reference TTFT in milliseconds
+      ref_ttft_ms: 200
+    # -- EWMA smoothing factor
+    ewma_alpha: 0.2
+    # -- Maximum in-flight requests per backend
+    max_in_flight_per_backend: 256
+    scrape:
+      # -- Enable backend metrics scraping
+      enabled: true
+      # -- Scrape interval
+      interval: 2s
+      # -- Scrape timeout
+      timeout: 1s
+      # -- Scrape cache TTL
+      cache_ttl: 1s
+  backend_discovery:
+    # -- Backend discovery mode (static, dynamic)
+    mode: static
+    # -- API URL for dynamic backend discovery
+    api_url: ""
+    # -- Backend discovery refresh interval
+    interval: 60s
+    # -- Static backend list
+    backends: []
+  rate_limit:
+    # -- Enable rate limiting
+    enabled: true
+    # -- Use token-weighted rate limiting
+    token_weighted: false
+    # -- Maximum Retry-After header value
+    max_retry_after: 60s
+    # -- Rate limit state sweep interval
+    sweep_interval: 30s
+    # -- Idle rate limit entry TTL
+    idle_ttl: 10m
+    global:
+      # -- Global rate limit (requests/sec)
+      rate_per_sec: 2000
+      # -- Global burst limit
+      burst: 4000
+    default_model:
+      # -- Default per-model rate limit (requests/sec)
+      rate_per_sec: 500
+      # -- Default per-model burst limit
+      burst: 1000
+    default_key:
+      # -- Default per-key rate limit (requests/sec)
+      rate_per_sec: 50
+      # -- Default per-key burst limit
+      burst: 100
+    # -- Per-model rate limits override
+    per_model: {}
+    # -- Per-key rate limits override
+    per_key: {}
+  admission:
+    # -- Enable admission control
+    enabled: true
+    # -- Maximum concurrent requests
+    max_concurrent: 64
+    # -- Maximum queued requests
+    max_queue: 256
+    # -- Maximum Retry-After for admission control
+    max_retry_after: 30s
+    # -- Use token-weighted admission
+    token_weighted: false
+  circuit:
+    # -- Enable circuit breaker
+    enabled: true
+    # -- Failure ratio threshold to open circuit
+    failure_ratio: 0.5
+    # -- Minimum requests before circuit evaluation
+    min_requests: 20
+    # -- Circuit evaluation window
+    window: 10s
+    # -- Number of buckets in the window
+    buckets: 10
+    # -- Base open state duration
+    open_base: 5s
+    # -- Maximum open state duration
+    open_max: 60s
+    # -- Exponential backoff factor
+    backoff_factor: 2.0
+    # -- Max requests in half-open state
+    half_open_max: 3
+    # -- Successes needed to close circuit from half-open
+    half_open_success: 3
+    # -- HTTP statuses considered failures
+    failure_statuses:
+      - 500
+      - 502
+      - 503
+      - 504
+      - 429
+
+deployment:
+  # -- Annotations for the deployment
+  annotations: {}
+
+resources:
+  # -- Kubernetes resource requests
+  requests: {cpu: 100m, memory: 128Mi}
+  # -- Kubernetes resource limits (CPU omitted to avoid CFS throttling)
+  limits: {memory: 512Mi}
+
+autoscaling:
+  # -- Enable horizontal pod autoscaling
+  enable: false
+  # -- Minimum number of replicas
+  minReplicas: 2
+  # -- Maximum number of replicas
+  maxReplicas: 6
+  # -- Target CPU utilization percentage
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  # -- Enable PodDisruptionBudget
+  enabled: true
+  # -- Minimum available pods during disruption
+  minAvailable: 1
+
+networkPolicy:
+  # -- Enable NetworkPolicy
+  enabled: true
+  # -- Allow DNS egress
+  allowDNS: true
+  # -- Allow ingress traffic
+  allowIngress: true
+  # -- Ingress traffic rules
+  ingressFrom: []
+  # -- Egress traffic rules
+  egressTo: []
+# ingressFrom example:
+# - namespaceSelector:
+#     matchLabels:
+#       kubernetes.io/metadata.name: my-namespace
+#   podSelector:
+#     matchLabels:
+#       app: my-frontend
+
+# egressTo example:
+# - to:
+#   - ipBlock:
+#       cidr: 10.0.0.0/8
+#   ports:
+#   - protocol: TCP
+#     port: 443
+# - to:
+#   - namespaceSelector:
+#       matchLabels:
+#         kubernetes.io/metadata.name: my-namespace
+#   ports:
+#   - protocol: TCP
+#     port: 8888
+
+secret:
+  # -- Name of existing Secret to use for configuration
+  existingSecret: ""
+  # -- Inline secret data
+  data: {}
+  # keys.json example:
+  #   keys.json: |
+  #     [
+  #       {"sha256": "e0db...", "key_id": "user", "tier": "basic"}
+  #     ]
+
+metrics:
+  serviceMonitor:
+    # -- Create ServiceMonitor for Prometheus Operator
+    enabled: false
+    # -- Scrape interval
+    interval: 15s
+    # -- Scrape timeout
+    scrapeTimeout: 10s
+    # -- Additional labels for ServiceMonitor
+    additionalLabels: {}
+
+securityContext:
+  podSecurityContext:
+    # -- Run container as non-root
+    runAsNonRoot: true
+    # -- Container user ID
+    runAsUser: 65532
+    # -- Container group ID
+    runAsGroup: 65532
+    # -- Filesystem group ID
+    fsGroup: 65532
+    seccompProfile:
+      # -- Seccomp profile type
+      type: RuntimeDefault
+  securityContext:
+    # -- Allow privilege escalation
+    allowPrivilegeEscalation: false
+    # -- Mount root filesystem as read-only
+    readOnlyRootFilesystem: true
+    capabilities:
+      # -- Linux capabilities to drop
+      drop: ["ALL"]

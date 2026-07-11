@@ -1,0 +1,20 @@
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: llm-gateway.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+gatewayapi:
+  enabled: true
+  gateway:
+    gatewayClassName: envoy
+    gateway: default
+    sectionName: http
+  hosts:
+    - hostname: llm-gateway.local
+  paths:
+    - path: /
+      pathType: PathPrefix
