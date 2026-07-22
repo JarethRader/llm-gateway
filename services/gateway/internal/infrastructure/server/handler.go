@@ -13,6 +13,7 @@ import (
 func (s *Server) RegisterRouteHandlers(m *chi.Mux, r *registry.Registry, mw MiddlewareHandlers) error {
 	v1 := chi.NewRouter()
 
+	// TODO move /metrics and /debug routes to a dedicated admin listener exposed on a different port
 	m.Handle("/metrics", promhttp.HandlerFor(r.Prometheus, promhttp.HandlerOpts{}))
 	v1.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

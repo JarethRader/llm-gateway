@@ -6,6 +6,8 @@ import (
 	"packages/lib/golang/shared/config"
 	"packages/lib/golang/shared/observability"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/server"
 )
 
@@ -22,7 +24,9 @@ func main() {
 		log.Fatalf("failed to load application configuration: %s", err)
 	}
 
-	telemetry, err := observability.InitTracer(ctx, cfg.App.Name, cfg.App.Version, cfg.App.Environment, cfg.Telemetry)
+	promReg := prometheus.NewRegistry()
+
+	telemetry, err := observability.InitTracer(ctx, cfg.App.Name, cfg.App.Version, cfg.App.Environment, cfg.Telemetry, promReg)
 	if err != nil {
 		log.Fatalf("failed to initialize telemetry providers: %s", err)
 	}
@@ -34,6 +38,7 @@ func main() {
 		*cfg,
 		lgr,
 		*telemetry,
+		promReg,
 	)
 
 	if err := s.Run(ctx); err != nil {

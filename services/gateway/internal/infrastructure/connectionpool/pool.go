@@ -50,3 +50,14 @@ func (p *Pool) Sync(desired []model.Backend) {
 		}
 	}
 }
+
+func (p *Pool) IsModelAvailable(requestedModel model.LargeLanguageModelID) bool {
+	availableModels := make(map[string]struct{}, 0)
+	for _, backend := range *p.clients.Load() {
+		for _, model := range backend.Model.Models {
+			availableModels[string(model)] = struct{}{}
+		}
+	}
+	_, ok := availableModels[string(requestedModel)]
+	return ok
+}

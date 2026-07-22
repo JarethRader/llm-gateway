@@ -15,6 +15,8 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
 	"github.com/jarethrader/llm-gateway/api-service/internal/infrastructure/registry"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -22,14 +24,16 @@ type Server struct {
 	cfg       config.Config
 	lgr       *slog.Logger
 	telemetry observability.TelemetryProviders
+	promReg   *prometheus.Registry
 	router    *chi.Mux
 }
 
-func NewServer(cfg config.Config, lgr *slog.Logger, telemetryProviders observability.TelemetryProviders) *Server {
+func NewServer(cfg config.Config, lgr *slog.Logger, telemetryProviders observability.TelemetryProviders, promReg *prometheus.Registry) *Server {
 	return &Server{
 		cfg:       cfg,
 		lgr:       lgr,
 		telemetry: telemetryProviders,
+		promReg:   promReg,
 		router:    chi.NewMux(),
 	}
 }
@@ -61,6 +65,8 @@ func (s *Server) Run(ctx context.Context) error {
 		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"*"},
 	}))
+
+	s.router.Handle("/metrics", promhttp.HandlerFor(s.promReg, promhttp.HandlerOpts{}))
 
 	if err := s.RegisterHandlers(s.router, registry); err != nil {
 		return fmt.Errorf("failed to register route handlers: %s", err)

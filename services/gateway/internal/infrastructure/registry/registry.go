@@ -1,10 +1,10 @@
 package registry
 
 import (
+	"fmt"
 	"log/slog"
 	"packages/lib/golang/shared/config"
-
-	"github.com/prometheus/client_golang/prometheus"
+	"packages/lib/golang/shared/observability"
 
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/application/ports"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/transport"
@@ -16,6 +16,7 @@ import (
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/proxy"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/ratelimit"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/transport/http"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Registry struct {
@@ -23,6 +24,7 @@ type Registry struct {
 	lgr *slog.Logger
 
 	Prometheus *prometheus.Registry
+	Meter      *observability.Metrics
 
 	Authenticator  ports.Authenticator
 	ConnectionPool ports.ConnectionPool
@@ -33,20 +35,25 @@ type Registry struct {
 	CircuitBreaker ports.CircuitBreaker
 }
 
-func Init(cfg config.Config, lgr *slog.Logger) (*Registry, error) {
+func Init(cfg config.Config, lgr *slog.Logger, prom *prometheus.Registry) (*Registry, error) {
 	registry := &Registry{
 		cfg: cfg,
 		lgr: lgr,
 	}
 
-	registry.Prometheus = prometheus.NewRegistry()
+	registry.Prometheus = prom
+	metric, err := observability.NewMetrics()
+	if err != nil {
+		return nil, fmt.Errorf("initialize prometheus meter: %w", err)
+	}
+	registry.Meter = metric
 
 	registry.Authenticator = authentication.New()
 	registry.ConnectionPool = connectionpool.New(cfg.ConnectionPool, lgr.With("component", "connection_pool"))
 	registry.ProxyRelay = proxy.New(cfg.SSEStreaming, lgr.With("component", "proxy_relay"))
 
 	if cfg.Circuit.Enabled {
-		registry.CircuitBreaker = circuitbreaker.NewManager(cfg.Circuit, lgr.With("component", "circuit_breaker"))
+		registry.CircuitBreaker = circuitbreaker.NewManager(cfg.Circuit, lgr.With("component", "circuit_breaker"), registry.Meter)
 	} else {
 		registry.CircuitBreaker = circuitbreaker.NewNoopManager()
 	}
@@ -62,6 +69,7 @@ func (r *Registry) CreateHTTPHandler() transport.Handler {
 	return http.NewHandler(
 		r.cfg.Proxy,
 		r.lgr.With("component", "transport_http"),
+		r.Meter,
 		func() bool { return true },
 		r.ConnectionPool,
 		r.ProxyRelay,

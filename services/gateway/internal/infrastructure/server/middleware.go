@@ -10,11 +10,16 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"packages/lib/golang/shared/observability"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/application/ports"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/model"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const maxBodySize = 4 * 1024 * 1024 // 4MB
@@ -28,12 +33,14 @@ type MiddlewareHandlers interface {
 }
 
 type middleware struct {
-	lgr *slog.Logger
+	lgr   *slog.Logger
+	meter *observability.Metrics
 }
 
-func NewMiddleware(lgr *slog.Logger) MiddlewareHandlers {
+func NewMiddleware(lgr *slog.Logger, meter *observability.Metrics) MiddlewareHandlers {
 	return &middleware{
-		lgr: lgr,
+		lgr:   lgr,
+		meter: meter,
 	}
 }
 
@@ -112,6 +119,13 @@ func (m *middleware) Auth(auth ports.Authenticator) func(next http.Handler) http
 				return
 			}
 
+			span := trace.SpanFromContext(r.Context())
+			span.AddEvent("authenticate", trace.WithAttributes(
+				attribute.String("key_id", string(identity.KeyID)),
+				attribute.String("tier", string(identity.Tier)),
+				attribute.String("result", "ok"),
+			))
+
 			ctx := context.WithValue(r.Context(), model.IdentityKey, identity)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -137,6 +151,23 @@ func (m *middleware) RateLimit(limiter ports.Limiter) func(next http.Handler) ht
 			}
 
 			decision := limiter.Allow(identity.KeyID, model.LargeLanguageModelID(*req.Model), 1)
+
+			metricAttrs := make([]attribute.KeyValue, 0, 2)
+			metricAttrs = append(metricAttrs, attribute.String("scope", string(decision.Scope)))
+			if decision.Allowed {
+				metricAttrs = append(metricAttrs, attribute.String("decision", "allow"))
+			} else {
+				metricAttrs = append(metricAttrs, attribute.String("decision", "deny"))
+			}
+			m.meter.RatelimitDecisions.Add(r.Context(), 1, metric.WithAttributes(metricAttrs...))
+
+			span := trace.SpanFromContext(r.Context())
+			span.AddEvent("ratelimit", trace.WithAttributes(
+				metricAttrs[0],
+				metricAttrs[1],
+				attribute.Float64("retry_after_seconds", decision.RetryAfter.Seconds()),
+			))
+
 			if !decision.Allowed {
 				m.lgr.WarnContext(r.Context(), "request rate-limited", slog.Any("decision", decision))
 				retryAfter := strconv.FormatFloat(math.Ceil(decision.RetryAfter.Seconds()), 'f', -1, 64)
@@ -157,7 +188,27 @@ func (m *middleware) RateLimit(limiter ports.Limiter) func(next http.Handler) ht
 func (m *middleware) Admit(admitter ports.Admitter) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			startAt := time.Now()
 			permit, decision := admitter.Acquire(r.Context())
+			decisionAttr := attribute.String("decision", "allow")
+			if !decision.Allowed {
+				decisionAttr = attribute.String("decision", "deny")
+			}
+			m.meter.AdmissionDecisions.Add(r.Context(), 1, metric.WithAttributes(decisionAttr))
+			depth := admitter.QueueDepth()
+			m.meter.QueueDepth.Record(r.Context(), int64(depth))
+			m.meter.AdmissionWait.Record(r.Context(), time.Since(startAt).Seconds())
+
+			_, span := observability.Tracer().Start(r.Context(), "gateway.admit")
+			span.SetAttributes(
+				attribute.Int("queue_depth", depth),
+				attribute.Int("in_flight", admitter.InFlight()),
+				attribute.Float64("waited_seconds", time.Since(startAt).Seconds()),
+				decisionAttr,
+				attribute.Float64("retry_after_seconds", decision.RetryAfter.Seconds()),
+			)
+			span.End()
+
 			if err := r.Context().Err(); err != nil {
 				if permit != nil {
 					permit.Release()
@@ -182,7 +233,13 @@ func (m *middleware) Admit(admitter ports.Admitter) func(next http.Handler) http
 				return
 			}
 
-			defer permit.Release()
+			m.meter.Inflight.Add(r.Context(), 1)
+
+			defer func(ctx context.Context) {
+				permit.Release()
+				m.meter.Inflight.Add(ctx, -1)
+			}(r.Context())
+
 			next.ServeHTTP(w, r)
 		})
 	}

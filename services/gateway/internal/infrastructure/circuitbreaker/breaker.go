@@ -1,8 +1,10 @@
 package circuitbreaker
 
 import (
+	"context"
 	"log/slog"
 	"packages/lib/golang/shared/config"
+	"packages/lib/golang/shared/observability"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -10,6 +12,8 @@ import (
 
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/application/ports"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/domain/model"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type Manager struct {
@@ -17,13 +21,15 @@ type Manager struct {
 	circuits map[model.BackendID]*Breaker
 	cfg      config.Circuit
 	lgr      *slog.Logger
+	meter    *observability.Metrics
 }
 
-func NewManager(cfg config.Circuit, lgr *slog.Logger) ports.CircuitBreaker {
+func NewManager(cfg config.Circuit, lgr *slog.Logger, meter *observability.Metrics) ports.CircuitBreaker {
 	manager := &Manager{
 		circuits: make(map[model.BackendID]*Breaker),
 		cfg:      cfg,
 		lgr:      lgr,
+		meter:    meter,
 	}
 
 	return manager
@@ -37,7 +43,7 @@ func (m *Manager) Allow(b model.BackendID, now time.Time) (admit, probe bool) {
 		m.mu.Lock()
 		breaker, exists = m.circuits[b]
 		if !exists {
-			breaker = NewBreaker(b, m.cfg, m.lgr)
+			breaker = NewBreaker(b, m.cfg, m.lgr, m.meter)
 			m.circuits[b] = breaker
 		}
 		m.mu.Unlock()
@@ -115,7 +121,7 @@ func (m *Manager) Sync(desired []model.Backend) {
 			next[b.ID] = c
 			continue
 		}
-		next[b.ID] = NewBreaker(b.ID, m.cfg, m.lgr)
+		next[b.ID] = NewBreaker(b.ID, m.cfg, m.lgr, m.meter)
 	}
 	m.circuits = next
 }
@@ -131,9 +137,10 @@ type Breaker struct {
 	window        *window
 	lgr           *slog.Logger
 	cfg           config.Circuit
+	meter         *observability.Metrics
 }
 
-func NewBreaker(backend model.BackendID, cfg config.Circuit, lgr *slog.Logger) *Breaker {
+func NewBreaker(backend model.BackendID, cfg config.Circuit, lgr *slog.Logger, meter *observability.Metrics) *Breaker {
 	span := cfg.Window
 	if span == 0 {
 		span = 10 * time.Second
@@ -169,6 +176,7 @@ func NewBreaker(backend model.BackendID, cfg config.Circuit, lgr *slog.Logger) *
 		window:    window,
 		lgr:       lgr,
 		cfg:       cfg,
+		meter:     meter,
 	}
 	breaker.state.Store(int64(model.PhaseClosed))
 
@@ -295,6 +303,15 @@ func (b *Breaker) doTransition(now time.Time, ev Event) {
 	nextState := Reduce(currentState, ev, in, b.cfg, now)
 
 	if currentState.Phase != nextState.Phase {
+		b.meter.CircuitState.Record(context.Background(), nextState.Phase.Value(), metric.WithAttributes(attribute.String("backend", string(b.backendID))))
+		b.meter.CircuitTransitions.Add(context.Background(), 1,
+			metric.WithAttributes(
+				attribute.String("backend", string(b.backendID)),
+				attribute.String("from", currentState.Phase.String()),
+				attribute.String("to", nextState.Phase.String()),
+			),
+		)
+
 		b.state.Store(nextState.Phase.Value())
 
 		switch nextState.Phase {

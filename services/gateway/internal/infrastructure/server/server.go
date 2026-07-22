@@ -18,6 +18,7 @@ import (
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/authentication"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/discovery"
 	"github.com/jarethrader/llm-gateway/gateway-service/internal/infrastructure/registry"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -26,14 +27,16 @@ type Server struct {
 	lgr       *slog.Logger
 	router    *chi.Mux
 	telemetry observability.TelemetryProviders
+	promReg   *prometheus.Registry
 }
 
-func NewServer(cfg config.Config, lgr *slog.Logger, telemetryProviders observability.TelemetryProviders) *Server {
+func NewServer(cfg config.Config, lgr *slog.Logger, telemetryProviders observability.TelemetryProviders, promReg *prometheus.Registry) *Server {
 	return &Server{
 		cfg:       cfg,
 		lgr:       lgr,
 		router:    chi.NewMux(),
 		telemetry: telemetryProviders,
+		promReg:   promReg,
 	}
 }
 
@@ -49,12 +52,12 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to create wait signal: %s", err)
 	}
 
-	registry, err := registry.Init(s.cfg, s.lgr)
+	registry, err := registry.Init(s.cfg, s.lgr, s.promReg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize registry: %s", err)
 	}
 
-	middleware := NewMiddleware(s.lgr.With("component", "middleware"))
+	middleware := NewMiddleware(s.lgr.With("component", "middleware"), registry.Meter)
 
 	server := &http.Server{
 		Addr:    address,

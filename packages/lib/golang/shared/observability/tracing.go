@@ -7,12 +7,13 @@ import (
 	"packages/lib/golang/shared/config"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
 	nooplog "go.opentelemetry.io/otel/log/noop"
@@ -35,13 +36,15 @@ type TelemetryProviders struct {
 	Shutdown func(context.Context) error
 }
 
-func InitTracer(ctx context.Context, serviceName, version, environment string, cfg config.Telemetry) (*TelemetryProviders, error) {
+func InitTracer(ctx context.Context, serviceName, version, environment string, cfg config.Telemetry, reg prometheus.Registerer) (*TelemetryProviders, error) {
 	if !cfg.Enabled {
+		otel.SetTracerProvider(noop.NewTracerProvider())
+		global.SetLoggerProvider(nooplog.NewLoggerProvider())
 		return &TelemetryProviders{
 			Tracer:   noop.NewTracerProvider(),
 			Meter:    noopmetric.NewMeterProvider(),
 			Logger:   nooplog.NewLoggerProvider(),
-			Shutdown: func(context.Context) error { return nil },
+			Shutdown: func(c context.Context) error { return nil },
 		}, nil
 	}
 
@@ -49,14 +52,16 @@ func InitTracer(ctx context.Context, serviceName, version, environment string, c
 	if err != nil {
 		return nil, fmt.Errorf("telemetry: build resource: %w", err)
 	}
+
+	mp, err := buildMeterProvider(reg, res)
+	if err != nil {
+		return nil, fmt.Errorf("telemetry: meter provider: %w", err)
+	}
+	otel.SetMeterProvider(mp)
+
 	tp, err := buildTracerProvider(ctx, cfg, res)
 	if err != nil {
 		return nil, fmt.Errorf("telemetry: tracer provider: %w", err)
-	}
-	mp, err := buildMeterProvider(ctx, cfg, res)
-	if err != nil {
-		_ = tp.Shutdown(ctx)
-		return nil, fmt.Errorf("telemetry: meter provider: %w", err)
 	}
 	lp, err := buildLoggerProvider(ctx, cfg, res)
 	if err != nil {
@@ -66,7 +71,6 @@ func InitTracer(ctx context.Context, serviceName, version, environment string, c
 	}
 
 	otel.SetTracerProvider(tp)
-	otel.SetMeterProvider(mp)
 	global.SetLoggerProvider(lp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{}, // W3C traceparent / tracestate
@@ -76,17 +80,11 @@ func InitTracer(ctx context.Context, serviceName, version, environment string, c
 	shutdown := func(ctx context.Context) error {
 		c, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		var errs []error
-		if err := tp.Shutdown(c); err != nil {
-			errs = append(errs, fmt.Errorf("tracer shutdown: %w", err))
-		}
-		if err := mp.Shutdown(c); err != nil {
-			errs = append(errs, fmt.Errorf("meter shutdown: %w", err))
-		}
-		if err := lp.Shutdown(c); err != nil {
-			errs = append(errs, fmt.Errorf("logger shutdown: %w", err))
-		}
-		return errors.Join(errs...)
+		return errors.Join(
+			tp.Shutdown(c),
+			mp.Shutdown(c),
+			lp.Shutdown(c),
+		)
 	}
 	return &TelemetryProviders{
 		Tracer:   tp,
@@ -141,19 +139,15 @@ func buildTracerProvider(ctx context.Context, cfg config.Telemetry, res *resourc
 	), nil
 }
 
-func buildMeterProvider(ctx context.Context, cfg config.Telemetry, res *resource.Resource) (*sdkmetric.MeterProvider, error) {
-	opts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint)}
-	if cfg.Insecure {
-		opts = append(opts, otlpmetricgrpc.WithInsecure())
-	}
-	exp, err := otlpmetricgrpc.New(ctx, opts...)
+func buildMeterProvider(reg prometheus.Registerer, res *resource.Resource) (*sdkmetric.MeterProvider, error) {
+	reader, err := otelprom.New(otelprom.WithRegisterer(reg))
 	if err != nil {
 		return nil, err
 	}
 	return sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp,
-			sdkmetric.WithInterval(15*time.Second))),
+		sdkmetric.WithReader(reader),
 		sdkmetric.WithResource(res),
+		sdkmetric.WithView(latencyHistogramViews()...),
 	), nil
 }
 
@@ -170,4 +164,26 @@ func buildLoggerProvider(ctx context.Context, cfg config.Telemetry, res *resourc
 		sdklog.WithProcessor(sdklog.NewBatchProcessor(exp)),
 		sdklog.WithResource(res),
 	), nil
+}
+
+func latencyHistogramViews() []sdkmetric.View {
+	ttft := sdkmetric.NewView(
+		sdkmetric.Instrument{Name: "gateway.ttft"},
+		sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+			Boundaries: []float64{0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2, 3, 5, 10},
+		}},
+	)
+	dur := sdkmetric.NewView(
+		sdkmetric.Instrument{Name: "gateway.request.duration"},
+		sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+			Boundaries: []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120},
+		}},
+	)
+	wait := sdkmetric.NewView(
+		sdkmetric.Instrument{Name: "gateway.admission.wait"},
+		sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
+			Boundaries: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2},
+		}},
+	)
+	return []sdkmetric.View{ttft, dur, wait}
 }

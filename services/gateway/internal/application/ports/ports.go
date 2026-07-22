@@ -14,6 +14,7 @@ import (
 type ConnectionPool interface {
 	Client(id model.BackendID) (model.BackendConnection, bool)
 	Sync(desired []model.Backend)
+	IsModelAvailable(requestedModel model.LargeLanguageModelID) bool
 }
 
 type Proxy interface {
