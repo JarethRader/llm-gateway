@@ -20,7 +20,7 @@ spec:
     interval: {{ . }}
     {{- end }}
     {{- with .Values.metrics.serviceMonitor.scrapeTimeout }}
-    interval: {{ . }}
+    scrapeTimeout: {{ . }}
     {{- end }}
   namespaceSelector:
     matchNames:
